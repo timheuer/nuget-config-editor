@@ -1,0 +1,135 @@
+{
+  "name": "nuget-config-editor",
+  "displayName": "NuGet Config Editor",
+  "description": "A visual editor for managing nuget.config files.",
+  "version": "0.0.0-placeholder",
+  "publisher": "timheuer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timheuer/nuget-config-editor"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "author": {
+    "name": "Tim Heuer",
+    "url": "https://www.timheuer.com"
+  },
+  "bugs": {
+    "url": "https://github.com/timheuer/nuget-config-editor/issues"
+  },
+  "qna": "https://github.com/timheuer/nuget-config-editor/issues",
+  "keywords": [
+    "nuget",
+    "nuget.config",
+    "nuget.config editor",
+    "nuget config",
+    "nuget config editor"
+  ],
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:nuget.config"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nuget-config-editor.openVisualEditor",
+        "title": "NuGet: Open nuget.config Visual Editor"
+      },
+      {
+        "command": "nuget-config-editor.addPackageSource",
+        "title": "NuGet: Add Package Source"
+      },
+      {
+        "command": "nuget-config-editor.refreshConfigTree",
+        "title": "NuGet: Refresh nuget.config Tree"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "nugetConfigEditor.visualEditor",
+        "displayName": "NuGet Config Visual Editor",
+        "selector": [
+          { "filenamePattern": "**/nuget.config" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "nugetConfigEditor.configs",
+          "name": "NuGet Configs",
+          "icon": "$(file-code)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "NuGet Config Editor",
+      "properties": {
+        "nugetConfigEditor.logLevel": {
+          "type": "string",
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Log level for NuGet Config Editor logging output."
+        },
+        "nugetConfigEditor.preferVisualEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer opening nuget.config files in the visual editor by default."
+        },
+        "nugetConfigEditor.preserveUnknownXml": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preserve unknown XML nodes and sections when saving nuget.config."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "build": "npm run check-types && npm run lint && node esbuild.js --production",
+    "deploy": "vsce publish"
+  },
+  "dependencies": {
+    "@timheuer/vscode-ext-logger": "^0.1.35",
+    "@vscode-elements/elements-lite": "^0.4.0",
+    "@vscode/codicons": "^0.0.40",
+    "fast-xml-parser": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.104.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.3"
+  }
+}
