@@ -19,11 +19,10 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     ): Promise<void> {
         const log = getLog();
         log.info?.('Opening NuGet Config Editor');
-    // Allow loading codicons assets (fonts) from node_modules and local script resources
+    // Allow loading codicons assets (fonts) from the bundled dist/webview folder so they are available in the VSIX
     webviewPanel.webview.options = {
         enableScripts: true,
         localResourceRoots: [
-            vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist'),
             vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')
         ]
     };
@@ -168,9 +167,10 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
 
     private getHtml(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'main.js'));
-        const codiconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'));
-        // Allow styles and fonts from the webview source so codicons CSS and its fonts can load
-        const csp = `default-src 'none'; script-src 'unsafe-inline' ${webview.cspSource}; style-src 'unsafe-inline' ${webview.cspSource}; font-src ${webview.cspSource};`;
+    // Use the copied codicon.css from the extension's dist/webview so the font asset is packaged in the VSIX
+    const codiconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'codicon.css'));
+    // Allow styles and fonts from the webview source so codicons CSS and its fonts can load
+    const csp = `default-src 'none'; script-src 'unsafe-inline' ${webview.cspSource}; style-src 'unsafe-inline' ${webview.cspSource}; font-src ${webview.cspSource};`;
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
