@@ -140,6 +140,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: 'Applied delete to document (unsaved)'});
                             getLog().debug?.(`Deleted source ${key} via WorkspaceEdit`);
                         } else {
+                            getLog().error?.('workspace.applyEdit returned false');
                             throw new Error('workspace.applyEdit returned false');
                         }
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
