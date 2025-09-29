@@ -91,6 +91,25 @@ function render(model: any) {
     table.appendChild(tbody);
     container.appendChild(table);
 
+    // Add Source form - place this right after the package sources table
+    const addForm = document.createElement('div');
+    addForm.className = 'form-row';
+    addForm.innerHTML = `<input placeholder='Key' class='small-input' aria-label='Source key' />`+
+        `<input placeholder='URL' class='full-input' aria-label='Source URL' />`+
+        `<button aria-label='Add source' title='Add source' class='codicon codicon-add vscode-btn icon-only'></button>`;
+    const [keyInput, urlInput, addBtn] = Array.from(addForm.querySelectorAll('input,button')) as [HTMLInputElement, HTMLInputElement, HTMLButtonElement];
+    addBtn.addEventListener('click', () => {
+        if (!keyInput.value.trim() || !urlInput.value.trim()) { return; }
+        vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'addSource', key: keyInput.value.trim(), url: urlInput.value.trim() }] });
+        keyInput.value = '';
+        urlInput.value = '';
+    });
+    // add a little spacing and append to container right after the table
+    const addWrapper = document.createElement('div');
+    addWrapper.style.marginTop = '.5rem';
+    addWrapper.appendChild(addForm);
+    container.appendChild(addWrapper);
+
     // Mappings Panel (render after sources)
     const mappingsHeading = document.createElement('h2');
     mappingsHeading.textContent = 'Package Source Mappings';
@@ -126,25 +145,7 @@ function render(model: any) {
     }
     container.appendChild(mappingsPanel);
 
-    const actions = document.createElement('div');
-    actions.style.marginTop = '.75rem';
-    // Add Source form
-    const addForm = document.createElement('div');
-    addForm.className = 'form-row';
-    addForm.innerHTML = `<input placeholder='Key' class='small-input' aria-label='Source key' />`+
-        `<input placeholder='URL' class='full-input' aria-label='Source URL' />`+
-        `<button aria-label='Add source' title='Add source' class='codicon codicon-add vscode-btn icon-only'></button>`;
-    const [keyInput, urlInput, addBtn] = Array.from(addForm.querySelectorAll('input,button')) as [HTMLInputElement, HTMLInputElement, HTMLButtonElement];
-    addBtn.addEventListener('click', () => {
-        if (!keyInput.value.trim() || !urlInput.value.trim()) { return; }
-        vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'addSource', key: keyInput.value.trim(), url: urlInput.value.trim() }] });
-        keyInput.value = '';
-        urlInput.value = '';
-    });
-    actions.appendChild(addForm);
-
     // Actions container (edits are applied immediately via messages)
-    container.appendChild(actions);
 
     tbody.addEventListener('click', (e: any) => {
         const btn = e.target.closest('button');
