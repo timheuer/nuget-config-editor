@@ -2,23 +2,22 @@ import * as vscode from 'vscode';
 import { parseNugetConfig, writeModelToUri, serializeModel } from '../services/nugetConfigService';
 import { validate } from '../services/validationService';
 import { ConfigModel } from '../model/types';
-import { getLog } from '../logging/logger';
 import { applyEditOps } from '../services/editOps';
 import { EditOp } from '../model/messages';
+import { Logger } from '@timheuer/vscode-ext-logger';
 
 export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'nugetConfigEditor.visualEditor';
     private static panels = new Set<vscode.WebviewPanel>();
 
-    constructor(private readonly context: vscode.ExtensionContext) {}
+    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
 
     async resolveCustomTextEditor(
         document: vscode.TextDocument,
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        const log = getLog();
-        log.info?.('Opening NuGet Config Editor');
+        this.log.info('Opening NuGet Config Editor');
     // Allow loading codicons assets (fonts) from the bundled dist/webview folder so they are available in the VSIX
     webviewPanel.webview.options = {
         enableScripts: true,
@@ -35,8 +34,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         let model: ConfigModel | undefined;
         const load = () => {
             try {
-                model = parseNugetConfig(document.getText(), preserveUnknown);
-                log.debug?.(`Parsed nuget.config sources=${model.sources.length} mappings=${model.mappings.length}`);
+                model = parseNugetConfig(document.getText(), preserveUnknown, document.uri.fsPath, this.log);
             } catch (err) {
                 webviewPanel.webview.postMessage({ type: 'error', error: String(err) });
                 return;
@@ -71,9 +69,9 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     try {
                         await writeModelToUri(document.uri, model, preserveUnknown);
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: true });
-                        log.info?.('nuget.config saved successfully');
+                        this.log.info('nuget.config saved successfully');
                     } catch (err) {
-                        log.error?.('Save failed', { error: String(err) });
+                        this.log.error('Save failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
                     }
                     break;
@@ -98,13 +96,13 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         const applied = await vscode.workspace.applyEdit(edit);
                         if (applied) {
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: 'Applied edit to document (unsaved)'});
-                            getLog().debug?.('Applied WorkspaceEdit to nuget.config (awaiting user save)');
+                            this.log.debug('Applied WorkspaceEdit to nuget.config (awaiting user save)');
                         } else {
-                            getLog().error?.('workspace.applyEdit returned false');
+                            this.log.error('workspace.applyEdit returned false');
                             throw new Error('workspace.applyEdit returned false');
                         }
                     } catch (err) {
-                        getLog().error?.('Persist via WorkspaceEdit failed', { error: String(err) });
+                        this.log.error('Persist via WorkspaceEdit failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
                     }
                     // Send refreshed model back to the webview
@@ -137,14 +135,14 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         const applied = await vscode.workspace.applyEdit(edit);
                         if (applied) {
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: 'Applied delete to document (unsaved)'});
-                            getLog().debug?.(`Deleted source ${key} via WorkspaceEdit`);
+                            this.log.debug(`Deleted source ${key} via WorkspaceEdit`);
                         } else {
-                            getLog().error?.('workspace.applyEdit returned false');
+                            this.log.error('workspace.applyEdit returned false');
                             throw new Error('workspace.applyEdit returned false');
                         }
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                     } catch (err) {
-                        getLog().error?.('Delete failed', { error: String(err) });
+                        this.log.error('Delete failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
                     }
                     break; }
@@ -187,11 +185,11 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     }
 }
 
-export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext) {
+export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext, logger: Logger) {
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             NugetConfigCustomEditorProvider.viewType,
-            new NugetConfigCustomEditorProvider(context),
+            new NugetConfigCustomEditorProvider(context, logger),
             { supportsMultipleEditorsPerDocument: false }
         )
     );

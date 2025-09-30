@@ -1,32 +1,32 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { initLogging, getLog } from './logging/logger';
 import { registerNugetConfigCustomEditor, broadcastToVisualEditors } from './customEditor/nugetConfigCustomEditorProvider';
 import { registerNugetConfigTree } from './tree/nugetConfigTreeProvider';
+import { createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+let log: Logger;
+
 export function activate(context: vscode.ExtensionContext) {
-	initLogging(context);
-	const log = getLog();
-	log.debug?.('nuget-config-editor activating');
+	
+	// Initialize logging as early as possible
+	log = createLoggerWithConfigMonitoring('NuGet Config Editor', 'nugetConfigEditor', 'logLevel', 'info', true, context) as unknown as Logger;
 
 	// Basic workspace scan for nuget.config presence (activation event already configured, but double-check & log)
 	vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 5)
 		.then(files => {
 			if (files.length > 0) {
-				log.debug?.(`Detected ${files.length} nuget.config file(s).`);
+				log.debug(`Detected ${files.length} nuget.config file(s).`);
 			} else {
-				log.debug?.('No nuget.config found during initial scan.');
+				log.debug('No nuget.config found during initial scan.');
 		}
 		}, (err: unknown) => {
-			log.warn?.('Error scanning for nuget.config', { err: String(err) });
+			log.warn('Error scanning for nuget.config', { err: String(err) });
 		});
 
 	// Register custom editor provider & tree
-	registerNugetConfigCustomEditor(context);
-	registerNugetConfigTree(context);
+	registerNugetConfigCustomEditor(context, log);
+	registerNugetConfigTree(context, log);
 
 	// Command: open visual editor for current or chosen nuget.config
 	context.subscriptions.push(vscode.commands.registerCommand('nuget-config-editor.openVisualEditor', async (uri?: vscode.Uri) => {
@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}));
 	}
-	log.info?.('NuGet Config Editor activated');
+	log.info('NuGet Config Editor activated');
 }
 
 // This method is called when your extension is deactivated

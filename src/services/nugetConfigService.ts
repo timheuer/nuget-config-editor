@@ -1,7 +1,7 @@
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import * as vscode from 'vscode';
 import { ConfigModel, PackageSource, PackageSourceMapping } from '../model/types';
-import { getLog, redact } from '../logging/logger';
+import { Logger } from '@timheuer/vscode-ext-logger';
 
 export interface ParseResult {
     model: ConfigModel;
@@ -14,8 +14,8 @@ const parser = new XMLParser({
     preserveOrder: false,
 });
 
-export function parseNugetConfig(xml: string, preserveUnknown: boolean): ConfigModel {
-    const log = getLog();
+export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePath?: string, log?: Logger): ConfigModel {
+    
     try {
         const doc = parser.parse(xml) as any; // expected root configuration
         const configuration = doc.configuration || doc['configuration'] || doc; // be tolerant
@@ -91,9 +91,18 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean): ConfigM
             unknown = xml;
         }
 
-        return { sources, mappings, rawUnknown: preserveUnknown ? unknown : undefined };
+        const model: ConfigModel = { sources, mappings, rawUnknown: preserveUnknown ? unknown : undefined };
+        // Log debug info about the parsed content. If a sourcePath was provided, include it.
+        try {
+            log?.info('Parsed nuget.config', { path: sourcePath, sources: model.sources.length, mappings: model.mappings.length });
+        } catch {
+            // ignore logging failures
+            log?.error('Logging parsed nuget.config failed', { path: sourcePath });
+        }
+
+        return model;
     } catch (err) {
-        log.error?.('Failed to parse nuget.config', { error: String(err) });
+        log?.error('Failed to parse nuget.config', { error: String(err) });
         throw err;
     }
 }
@@ -162,11 +171,6 @@ export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol
     return normalized;
 }
 
-export async function readAndParseUri(uri: vscode.Uri, preserveUnknown: boolean): Promise<ConfigModel> {
-    const bytes = await vscode.workspace.fs.readFile(uri);
-    const text = new TextDecoder('utf-8').decode(bytes);
-    return parseNugetConfig(text, preserveUnknown);
-}
 
 export async function writeModelToUri(uri: vscode.Uri, model: ConfigModel, preserveUnknown: boolean): Promise<void> {
     const eol = detectEol();

@@ -75,11 +75,12 @@
         "nugetConfigEditor.logLevel": {
           "type": "string",
           "enum": [
-            "trace",
-            "debug",
-            "info",
+            "off",
+            "error",
             "warn",
-            "error"
+            "info",
+            "debug",
+            "trace"
           ],
           "default": "info",
           "description": "Log level for NuGet Config Editor logging output."
