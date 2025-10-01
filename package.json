@@ -72,7 +72,7 @@
     "viewsWelcome": [
       {
         "view": "nugetConfigEditor.configs",
-        "contents": "No nuget.config files found in the current workspace.\n[Create nuget.config](command:workbench.action.files.newUntitledFile)"
+        "contents": "No nuget.config files found in the current workspace."
       }
     ],
     "configuration": {
