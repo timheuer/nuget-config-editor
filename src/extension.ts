@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 	log = createLoggerWithConfigMonitoring('NuGet Config Editor', 'nugetConfigEditor', 'logLevel', 'info', true, context) as unknown as Logger;
 
 	// Basic workspace scan for nuget.config presence (activation event already configured, but double-check & log)
-	vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 5)
+	vscode.workspace.findFiles('**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]', '**/{bin,obj,node_modules,packages}/**', 5)
 		.then(files => {
 			if (files.length > 0) {
 				log.debug(`Detected ${files.length} nuget.config file(s).`);
@@ -38,7 +38,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 		if (!target) {
-			const files = await vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 10);
+			const files = await vscode.workspace.findFiles('**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]', '**/{bin,obj,node_modules,packages}/**', 5);
 			if (files.length === 0) {
 				vscode.window.showWarningMessage('No nuget.config files found in workspace.');
 				return;
