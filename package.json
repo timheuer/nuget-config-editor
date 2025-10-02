@@ -32,14 +32,14 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:nuget.config"
+    "workspaceContains:**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "nuget-config-editor.openVisualEditor",
-        "title": "NuGet: Open nuget.config Visual Editor"
+        "title": "NuGet: Open nuget.config editor"
       },
       {
         "command": "nuget-config-editor.addPackageSource",
@@ -47,15 +47,16 @@
       },
       {
         "command": "nuget-config-editor.refreshConfigTree",
-        "title": "NuGet: Refresh nuget.config Tree"
+        "title": "NuGet: Refresh nuget.config view",
+        "icon": "$(refresh)"
       }
     ],
     "customEditors": [
       {
         "viewType": "nugetConfigEditor.visualEditor",
-        "displayName": "NuGet Config Visual Editor",
+        "displayName": "NuGet Config Editor",
         "selector": [
-          { "filenamePattern": "**/nuget.config" }
+          { "filenamePattern": "**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]" }
         ],
         "priority": "option"
       }
@@ -75,6 +76,16 @@
         "contents": "No nuget.config files found in the current workspace."
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "nuget-config-editor.refreshConfigTree",
+          "when": "view == nugetConfigEditor.configs",
+          "group": "navigation",
+          "title": "Refresh"
+        }
+      ]
+    },
     "configuration": {
       "title": "NuGet Config Editor",
       "properties": {

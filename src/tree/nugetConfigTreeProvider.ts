@@ -8,7 +8,33 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
+    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
+        // Watch for nuget.config file changes and refresh the tree
+        const watcher = vscode.workspace.createFileSystemWatcher('**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]');
+        watcher.onDidCreate((uri) => {
+            // Exclude common build/dependency folders from triggering refresh
+            if (!this.isExcludedPath(uri.fsPath)) {
+                this.refresh();
+            }
+        });
+        watcher.onDidDelete((uri) => {
+            if (!this.isExcludedPath(uri.fsPath)) {
+                this.refresh();
+            }
+        });
+        watcher.onDidChange((uri) => {
+            if (!this.isExcludedPath(uri.fsPath)) {
+                this.refresh();
+            }
+        });
+        context.subscriptions.push(watcher);
+    }
+
+    private isExcludedPath(fsPath: string): boolean {
+        const normalizedPath = fsPath.toLowerCase().replace(/\\/g, '/');
+        const excludePatterns = ['/node_modules/', '/obj/', '/bin/'];
+        return excludePatterns.some(pattern => normalizedPath.includes(pattern));
+    }
 
     refresh(): void { this._onDidChangeTreeData.fire(); }
 
@@ -18,14 +44,14 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         item.description = element.description;
         item.command = {
             command: 'nuget-config-editor.openVisualEditor',
-            title: 'Open Visual Editor',
+            title: 'Open Editor',
             arguments: [element.uri]
         };
         return item;
     }
 
     async getChildren(_element?: NodeData): Promise<NodeData[]> {
-        const files = await vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 50);
+        const files = await vscode.workspace.findFiles('**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]', '{**/node_modules/**,**/obj/**,**/bin/**}', 50);
         const nodes: NodeData[] = [];
         for (const f of files) {
             try {
@@ -46,4 +72,6 @@ export function registerNugetConfigTree(context: vscode.ExtensionContext, log: L
         vscode.window.registerTreeDataProvider('nugetConfigEditor.configs', provider),
         vscode.commands.registerCommand('nuget-config-editor.refreshConfigTree', () => provider.refresh())
     );
+    // Trigger initial refresh to ensure tree updates after workspace is fully loaded
+    setTimeout(() => provider.refresh(), 10);
 }
