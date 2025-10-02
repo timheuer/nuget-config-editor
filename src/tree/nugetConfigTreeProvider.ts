@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { parseNugetConfig } from '../services/nugetConfigService';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB } from '../constants';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
 interface NodeData { uri: vscode.Uri; label: string; description?: string }
@@ -25,7 +26,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     }
 
     async getChildren(_element?: NodeData): Promise<NodeData[]> {
-        const files = await vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 50);
+        const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10);
         const nodes: NodeData[] = [];
         for (const f of files) {
             try {

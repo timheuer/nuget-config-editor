@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor } from './customEditor/nugetConfigCustomEditorProvider';
 import { registerNugetConfigTree } from './tree/nugetConfigTreeProvider';
 import { createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB } from './constants';
 
 let log: Logger;
 
@@ -13,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
 	log = createLoggerWithConfigMonitoring('NuGet Config Editor', 'nugetConfigEditor', 'logLevel', 'info', true, context) as unknown as Logger;
 
 	// Basic workspace scan for nuget.config presence (activation event already configured, but double-check & log)
-	vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 5)
+	vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10)
 		.then(files => {
 			if (files.length > 0) {
 				log.debug(`Detected ${files.length} nuget.config file(s).`);
@@ -38,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 		if (!target) {
-			const files = await vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 10);
+			const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10);
 			if (files.length === 0) {
 				vscode.window.showWarningMessage('No nuget.config files found in workspace.');
 				return;
@@ -66,7 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
 			targetUri = activeEditor.document.uri;
 		} else {
 			// Check if there are any nuget.config files in the workspace
-			const files = await vscode.workspace.findFiles('**/nuget.config', '**/node_modules/**', 10);
+			const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10);
 			if (files.length === 0) {
 				vscode.window.showWarningMessage('No nuget.config files found in workspace.');
 				return;
