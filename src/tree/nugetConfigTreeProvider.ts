@@ -8,7 +8,14 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
+    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
+        // Watch for nuget.config file changes and refresh the tree
+        const watcher = vscode.workspace.createFileSystemWatcher('**/nuget.config');
+        watcher.onDidCreate(() => this.refresh());
+        watcher.onDidDelete(() => this.refresh());
+        watcher.onDidChange(() => this.refresh());
+        context.subscriptions.push(watcher);
+    }
 
     refresh(): void { this._onDidChangeTreeData.fire(); }
 
@@ -46,4 +53,6 @@ export function registerNugetConfigTree(context: vscode.ExtensionContext, log: L
         vscode.window.registerTreeDataProvider('nugetConfigEditor.configs', provider),
         vscode.commands.registerCommand('nuget-config-editor.refreshConfigTree', () => provider.refresh())
     );
+    // Trigger initial refresh to ensure tree updates after workspace is fully loaded
+    setTimeout(() => provider.refresh(), 100);
 }
