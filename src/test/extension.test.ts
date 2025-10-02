@@ -17,14 +17,14 @@ suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
 
 	test('Open visual editor command exists', async () => {
-			await ensureExtensionActivated();
-			const cmds = await vscode.commands.getCommands(true);
-			assert.ok(cmds.includes('nuget-config-editor.openVisualEditor'));
+		await ensureExtensionActivated();
+		const cmds = await vscode.commands.getCommands(true);
+		assert.ok(cmds.includes('nuget-config-editor.openVisualEditor'));
 	});
 
 	test('Add package source command exists', async () => {
-			await ensureExtensionActivated();
-			const cmds = await vscode.commands.getCommands(true);
-			assert.ok(cmds.includes('nuget-config-editor.addPackageSource'));
+		await ensureExtensionActivated();
+		const cmds = await vscode.commands.getCommands(true);
+		assert.ok(cmds.includes('nuget-config-editor.addPackageSource'));
 	});
 });
