@@ -8,7 +8,7 @@ import { Logger } from '@timheuer/vscode-ext-logger';
 
 export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = 'nugetConfigEditor.visualEditor';
-    private static panels = new Set<vscode.WebviewPanel>();
+    private static panels = new Map<vscode.WebviewPanel, vscode.Uri>();
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
 
@@ -25,7 +25,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
             vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')
         ]
     };
-    NugetConfigCustomEditorProvider.panels.add(webviewPanel);
+    NugetConfigCustomEditorProvider.panels.set(webviewPanel, document.uri);
         webviewPanel.webview.html = this.getHtml(webviewPanel.webview);
 
         const cfg = vscode.workspace.getConfiguration('nugetConfigEditor');
@@ -196,8 +196,18 @@ export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext
 }
 
 export function broadcastToVisualEditors(message: any) {
-    for (const panel of (NugetConfigCustomEditorProvider as any).panels as Set<vscode.WebviewPanel>) {
+    for (const panel of (NugetConfigCustomEditorProvider as any).panels.keys()) {
         panel.webview.postMessage(message);
     }
+}
+
+export function sendToVisualEditor(uri: vscode.Uri, message: any): boolean {
+    for (const [panel, docUri] of (NugetConfigCustomEditorProvider as any).panels as Map<vscode.WebviewPanel, vscode.Uri>) {
+        if (docUri.toString() === uri.toString()) {
+            panel.webview.postMessage(message);
+            return true;
+        }
+    }
+    return false;
 }
 
