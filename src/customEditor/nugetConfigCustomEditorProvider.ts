@@ -175,7 +175,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>NuGet Config Visual Editor</title>
+<title>NuGet Config Editor</title>
 <link rel="stylesheet" href="${codiconUri}" />
 </head>
 <body>
