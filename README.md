@@ -4,6 +4,8 @@ A Visual Studio Code extension that provides a friendly visual editor for workin
 
 This extension lets you view and manage package sources and package source mappings using a table-based GUI instead of editing XML by hand. It focuses on clarity, accessibility, and preserving configuration intent when saving changes.
 
+<img width="1606" height="1035" alt="image" src="https://github.com/user-attachments/assets/c49203bb-ae27-4626-885f-a47fe98ecadb" />
+
 ## Key features
 
 - Visual, table-based editor for `nuget.config` package sources: add, edit, remove, enable/disable sources.
