@@ -27,4 +27,10 @@ suite('Extension Test Suite', () => {
 		const cmds = await vscode.commands.getCommands(true);
 		assert.ok(cmds.includes('nuget-config-editor.addPackageSource'));
 	});
+
+	test('Open settings command exists', async () => {
+		await ensureExtensionActivated();
+		const cmds = await vscode.commands.getCommands(true);
+		assert.ok(cmds.includes('nuget-config-editor.openSettings'));
+	});
 });
