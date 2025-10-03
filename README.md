@@ -4,7 +4,7 @@ A Visual Studio Code extension that gives you a friendly, table-based editor for
 
 Edit package sources and package source mappings with a clear, accessible UI while preserving the intent of your original configuration when possible.
 
-<img width="1606" height="1035" alt="image" src="https://github.com/user-attachments/assets/c49203bb-ae27-4626-885f-a47fe98ecadb" />
+<img alt="image" src="https://github.com/user-attachments/assets/c49203bb-ae27-4626-885f-a47fe98ecadb" />
 
 ## Key features
 
