@@ -56,6 +56,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             title: 'Open Editor',
             arguments: [element.uri]
         };
+        
+        // Add globe icon for global config
+        if (element.label === 'Global nuget.config') {
+            item.iconPath = new vscode.ThemeIcon('globe');
+        }
+        
         return item;
     }
 
