@@ -111,6 +111,12 @@
           "type": "boolean",
           "default": true,
           "description": "Preserve unknown XML nodes and sections when saving nuget.config."
+        },
+        "nugetConfigEditor.showGlobalConfig": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the user global nuget.config (outside the workspace) in the NuGet Configs view if it exists.",
+          "markdownDescription": "Show the user global **nuget.config** (e.g. %APPDATA%/NuGet/NuGet.Config or ~/.config/NuGet/NuGet.Config) in the NuGet Configs view if it exists."
         }
       }
     }
