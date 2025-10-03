@@ -106,6 +106,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	// Command: open extension settings
+	context.subscriptions.push(vscode.commands.registerCommand('nuget-config-editor.openSettings', async () => {
+		await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:timheuer.nuget-config-editor');
+	}));
+
 	// Auto-open preference
 	const cfg = vscode.workspace.getConfiguration('nugetConfigEditor');
 	const prefer = cfg.get<boolean>('preferVisualEditor', true);
