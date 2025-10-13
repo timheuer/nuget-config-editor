@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor } from './customEditor/nugetConfigCustomEditorProvider';
 import { registerNugetConfigTree } from './tree/nugetConfigTreeProvider';
 import { createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
-import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB } from './constants';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, MSG_NO_NUGET_CONFIG_FOUND, MSG_SELECT_NUGET_CONFIG, MSG_SELECT_NUGET_CONFIG_FOR_SOURCE, MSG_ENTER_PACKAGE_SOURCE_KEY, MSG_ENTER_PACKAGE_SOURCE_URL, SETTING_PREFER_VISUAL_EDITOR } from './constants';
 
 let log: Logger;
 
@@ -41,13 +41,13 @@ export function activate(context: vscode.ExtensionContext) {
 		if (!target) {
 			const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10);
 			if (files.length === 0) {
-				vscode.window.showWarningMessage('No nuget.config files found in workspace.');
+				vscode.window.showWarningMessage(MSG_NO_NUGET_CONFIG_FOUND);
 				return;
 			}
 			if (files.length === 1) {
 				target = files[0];
 			} else {
-				const pick = await vscode.window.showQuickPick(files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })), { placeHolder: 'Select a nuget.config to open' });
+				const pick = await vscode.window.showQuickPick(files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })), { placeHolder: MSG_SELECT_NUGET_CONFIG });
 				target = pick?.uri;
 			}
 		}
@@ -69,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// Check if there are any nuget.config files in the workspace
 			const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10);
 			if (files.length === 0) {
-				vscode.window.showWarningMessage('No nuget.config files found in workspace.');
+				vscode.window.showWarningMessage(MSG_NO_NUGET_CONFIG_FOUND);
 				return;
 			}
 			if (files.length === 1) {
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// Multiple files - ask user to pick one
 				const pick = await vscode.window.showQuickPick(
 					files.map(f => ({ label: vscode.workspace.asRelativePath(f), uri: f })),
-					{ placeHolder: 'Select a nuget.config file to add the package source to' }
+					{ placeHolder: MSG_SELECT_NUGET_CONFIG_FOR_SOURCE }
 				);
 				if (!pick) { return; }
 				targetUri = pick.uri;
@@ -88,9 +88,9 @@ export function activate(context: vscode.ExtensionContext) {
 		if (!targetUri) { return; }
 
 		// Get the key and URL from user
-		const key = await vscode.window.showInputBox({ prompt: 'Enter package source key', ignoreFocusOut: true });
+		const key = await vscode.window.showInputBox({ prompt: MSG_ENTER_PACKAGE_SOURCE_KEY, ignoreFocusOut: true });
 		if (!key) { return; }
-		const url = await vscode.window.showInputBox({ prompt: 'Enter package source URL', ignoreFocusOut: true });
+		const url = await vscode.window.showInputBox({ prompt: MSG_ENTER_PACKAGE_SOURCE_URL, ignoreFocusOut: true });
 		if (!url) { return; }
 
 		// Try to send to an open visual editor for this URI
@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Auto-open preference
 	const cfg = vscode.workspace.getConfiguration('nugetConfigEditor');
-	const prefer = cfg.get<boolean>('preferVisualEditor', true);
+    const prefer = cfg.get<boolean>('preferVisualEditor', true);
 	if (prefer) {
 		vscode.workspace.textDocuments.forEach(d => {
 			if (/nuget\.config$/i.test(d.uri.fsPath) && d.languageId === 'xml') {

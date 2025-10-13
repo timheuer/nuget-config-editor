@@ -2,6 +2,7 @@ import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import * as vscode from 'vscode';
 import { ConfigModel, PackageSource, PackageSourceMapping } from '../model/types';
 import { Logger } from '@timheuer/vscode-ext-logger';
+import { SETTING_PRESERVE_UNKNOWN_XML } from '../constants';
 
 export interface ParseResult {
     model: ConfigModel;

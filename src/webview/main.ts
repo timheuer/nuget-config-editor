@@ -6,6 +6,37 @@ const vscodeApi = acquireVsCodeApi();
 
 let currentModel: any | undefined;
 
+// UI Constants (webview context cannot import from ../constants.ts)
+const UI = {
+    PACKAGE_SOURCES: 'Package Sources',
+    KEY: 'Key',
+    URL: 'URL',
+    ENABLED: 'Enabled',
+    ACTIONS: 'Actions',
+    NO_SOURCES: '(No sources)',
+    YES: 'Yes',
+    NO: 'No',
+    EDIT_SOURCE: 'Edit source',
+    EDIT: 'Edit',
+    DISABLE_SOURCE: 'Disable source',
+    ENABLE_SOURCE: 'Enable source',
+    DISABLE: 'Disable',
+    ENABLE: 'Enable',
+    DELETE_SOURCE: 'Delete source',
+    DELETE: 'Delete',
+    ADD_SOURCE: 'Add source',
+    PACKAGE_SOURCE_MAPPINGS: 'Package Source Mappings',
+    PATTERN: 'pattern',
+    PATTERNS: 'patterns',
+    REMOVE_PATTERN: 'Remove pattern',
+    ADD_PATTERN: 'Add pattern',
+    SAVE: 'Save',
+    CANCEL: 'Cancel',
+    LOADING: 'Loading nuget.config...',
+    UNKNOWN_ERROR: 'Unknown error',
+    SAVE_FAILED_PREFIX: 'Save failed: '
+};
+
 function $(sel: string) { return document.querySelector(sel); }
 
 let __stylesInjected = false;
@@ -61,29 +92,29 @@ function render(model: any) {
     container.innerHTML = '';
     // Package Sources heading and table first
     const heading = document.createElement('h2');
-    heading.textContent = 'Package Sources';
+    heading.textContent = UI.PACKAGE_SOURCES;
     container.appendChild(heading);
 
     // Package Sources table (render first)
     const table = document.createElement('table');
     table.className = 'sources-table';
-    table.innerHTML = '<thead><tr><th>Key</th><th>URL</th><th>Enabled</th><th>Actions</th></tr></thead>';
+    table.innerHTML = `<thead><tr><th>${UI.KEY}</th><th>${UI.URL}</th><th>${UI.ENABLED}</th><th>${UI.ACTIONS}</th></tr></thead>`;
     const tbody = document.createElement('tbody');
     if (!model.sources.length) {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="4" style="opacity:.7;">(No sources)</td>';
+        tr.innerHTML = `<td colspan="4" style="opacity:.7;">${UI.NO_SOURCES}</td>`;
         tbody.appendChild(tr);
     } else {
         for (const s of model.sources) {
             const tr = document.createElement('tr');
             tr.dataset.key = s.key;
             tr.innerHTML = `<td>${escapeHtml(s.key)}</td>`+
-                `<td class=\"urlCell\">${escapeHtml(s.url)}</td>`+
-                `<td>${s.enabled ? 'Yes' : 'No'}</td>`+
+                `<td class="urlCell">${escapeHtml(s.url)}</td>`+
+                `<td>${s.enabled ? UI.YES : UI.NO}</td>`+
                 `<td class="actions-cell">`+
-                `<button data-act='edit' aria-label='Edit source' title='Edit' class='codicon codicon-edit vscode-btn icon-only'></button>`+
-                `<button data-act='toggle' aria-label='${s.enabled ? 'Disable' : 'Enable'} source' title='${s.enabled ? 'Disable' : 'Enable'}' class='codicon ${s.enabled ? 'codicon-circle-slash' : 'codicon-check'} vscode-btn icon-only'></button>`+
-                `<button data-act='delete' aria-label='Delete source' title='Delete' class='codicon codicon-trash vscode-btn icon-only'></button>`+
+                `<button data-act='edit' aria-label='${UI.EDIT_SOURCE}' title='${UI.EDIT}' class='codicon codicon-edit vscode-btn icon-only'></button>`+
+                `<button data-act='toggle' aria-label='${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}' title='${s.enabled ? UI.DISABLE : UI.ENABLE}' class='codicon ${s.enabled ? 'codicon-circle-slash' : 'codicon-check'} vscode-btn icon-only'></button>`+
+                `<button data-act='delete' aria-label='${UI.DELETE_SOURCE}' title='${UI.DELETE}' class='codicon codicon-trash vscode-btn icon-only'></button>`+
                 `</td>`;
             tbody.appendChild(tr);
         }
@@ -94,9 +125,9 @@ function render(model: any) {
     // Add Source form - place this right after the package sources table
     const addForm = document.createElement('div');
     addForm.className = 'form-row';
-    addForm.innerHTML = `<input placeholder='Key' class='small-input' aria-label='Source key' />`+
-        `<input placeholder='URL' class='full-input' aria-label='Source URL' />`+
-        `<button aria-label='Add source' title='Add source' class='codicon codicon-add vscode-btn icon-only'></button>`;
+    addForm.innerHTML = `<input placeholder='${UI.KEY}' class='small-input' aria-label='Source key' />`+
+        `<input placeholder='${UI.URL}' class='full-input' aria-label='Source URL' />`+
+        `<button aria-label='${UI.ADD_SOURCE}' title='${UI.ADD_SOURCE}' class='codicon codicon-add vscode-btn icon-only'></button>`;
     const [keyInput, urlInput, addBtn] = Array.from(addForm.querySelectorAll('input,button')) as [HTMLInputElement, HTMLInputElement, HTMLButtonElement];
     addBtn.addEventListener('click', () => {
         if (!keyInput.value.trim() || !urlInput.value.trim()) { return; }
@@ -112,7 +143,7 @@ function render(model: any) {
 
     // Mappings Panel (render after sources)
     const mappingsHeading = document.createElement('h2');
-    mappingsHeading.textContent = 'Package Source Mappings';
+    mappingsHeading.textContent = UI.PACKAGE_SOURCE_MAPPINGS;
     container.appendChild(mappingsHeading);
 
     const mappingsPanel = document.createElement('div');
@@ -125,20 +156,20 @@ function render(model: any) {
         // header with key and count
         const header = document.createElement('div');
         header.className = 'mapping-header';
-        header.innerHTML = `<div><span class='src-key'>${escapeHtml(src.key)}</span> <span style="opacity:.7; margin-left:.5rem;">(${patterns.length} pattern${patterns.length!==1?'s':''})</span></div>`;
+        header.innerHTML = `<div><span class='src-key'>${escapeHtml(src.key)}</span> <span style="opacity:.7; margin-left:.5rem;">(${patterns.length} ${patterns.length!==1 ? UI.PATTERNS : UI.PATTERN})</span></div>`;
         srcDiv.appendChild(header);
         // Patterns list
         const patList = document.createElement('ul');
         patList.className = 'patterns';
         for (const pat of patterns) {
             const li = document.createElement('li');
-            li.innerHTML = `<div class='pattern-label'><span class='badge'>${escapeHtml(pat)}</span></div><div><button data-act='removePattern' data-key='${src.key}' data-pattern='${escapeHtml(pat)}' aria-label='Remove pattern' title='Remove pattern' class='codicon codicon-close vscode-btn icon-only'></button></div>`;
+            li.innerHTML = `<div class='pattern-label'><span class='badge'>${escapeHtml(pat)}</span></div><div><button data-act='removePattern' data-key='${src.key}' data-pattern='${escapeHtml(pat)}' aria-label='${UI.REMOVE_PATTERN}' title='${UI.REMOVE_PATTERN}' class='codicon codicon-close vscode-btn icon-only'></button></div>`;
             patList.appendChild(li);
         }
         // Add pattern input
         const addPatDiv = document.createElement('div');
         addPatDiv.className = 'add-pattern';
-        addPatDiv.innerHTML = `<input type='text' placeholder='Add pattern' class='small-input' aria-label='Add pattern' /> <button data-act='addPattern' data-key='${src.key}' aria-label='Add pattern' title='Add pattern' class='codicon codicon-add vscode-btn icon-only'></button>`;
+        addPatDiv.innerHTML = `<input type='text' placeholder='${UI.ADD_PATTERN}' class='small-input' aria-label='${UI.ADD_PATTERN}' /> <button data-act='addPattern' data-key='${src.key}' aria-label='${UI.ADD_PATTERN}' title='${UI.ADD_PATTERN}' class='codicon codicon-add vscode-btn icon-only'></button>`;
         srcDiv.appendChild(patList);
         srcDiv.appendChild(addPatDiv);
         mappingsPanel.appendChild(srcDiv);
@@ -205,8 +236,8 @@ function enterEditRow(tr: HTMLTableRowElement, key: string, model: any) {
     const actionsCell = cells[3];
     keyCell.innerHTML = `<input value='${escapeHtml(source.key)}' class='small-input' aria-label='Edit source key' />`;
     urlCell.innerHTML = `<input value='${escapeHtml(source.url)}' class='full-input' aria-label='Edit source URL' />`;
-    enabledCell.textContent = source.enabled ? 'Yes' : 'No';
-    actionsCell.innerHTML = `<button data-act='saveEdit' aria-label='Save' title='Save' class='codicon codicon-save vscode-btn icon-only'></button> <button data-act='cancelEdit' aria-label='Cancel' title='Cancel' class='codicon codicon-discard vscode-btn icon-only'></button>`;
+    enabledCell.textContent = source.enabled ? UI.YES : UI.NO;
+    actionsCell.innerHTML = `<button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button> <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>`;
     actionsCell.addEventListener('click', function handler(e: any) {
         const b = e.target.closest('button');
         if (!b) { return; }
@@ -238,7 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
     root.id = 'nuget-config-editor-root';
     root.style.padding = '1rem';
     root.style.fontFamily = 'var(--vscode-font-family)';
-    root.textContent = 'Loading nuget.config...';
+    root.textContent = UI.LOADING;
     document.body.appendChild(root);
     vscodeApi.postMessage({ type: 'ready' });
 });
@@ -255,7 +286,7 @@ window.addEventListener('message', (ev: any) => {
             vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'addSource', key: msg.key, url: msg.url }] });
             break;
         case 'error':
-            showError(msg.error || 'Unknown error');
+            showError(msg.error || UI.UNKNOWN_ERROR);
             break;
         case 'validation':
             // Display first validation error (future: richer UI)
@@ -267,7 +298,7 @@ window.addEventListener('message', (ev: any) => {
             if (msg.ok) {
                 // Optionally flash saved state
             } else {
-                showError('Save failed: ' + msg.error);
+                showError(UI.SAVE_FAILED_PREFIX + msg.error);
             }
             break;
     }

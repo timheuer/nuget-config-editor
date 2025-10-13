@@ -5,9 +5,10 @@ import { ConfigModel } from '../model/types';
 import { applyEditOps } from '../services/editOps';
 import { EditOp } from '../model/messages';
 import { Logger } from '@timheuer/vscode-ext-logger';
+import { CUSTOM_EDITOR_VIEW_TYPE, MSG_OPENING_EDITOR, MSG_CANNOT_SAVE_VALIDATION_ERRORS, MSG_DELETE_SOURCE_CONFIRM, MSG_DELETE_BUTTON, MSG_APPLIED_EDIT, MSG_APPLIED_DELETE, SETTING_PRESERVE_UNKNOWN_XML } from '../constants';
 
 export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorProvider {
-    public static readonly viewType = 'nugetConfigEditor.visualEditor';
+    public static readonly viewType = CUSTOM_EDITOR_VIEW_TYPE;
     private static panels = new Map<vscode.WebviewPanel, vscode.Uri>();
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
@@ -17,7 +18,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        this.log.info('Opening NuGet Config Editor');
+        this.log.info(MSG_OPENING_EDITOR);
     // Allow loading codicons assets (fonts) from the bundled dist/webview folder so they are available in the VSIX
     webviewPanel.webview.options = {
         enableScripts: true,
@@ -63,7 +64,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     const issues = validate(model);
                     if (issues.some(i => i.level === 'error')) {
                         webviewPanel.webview.postMessage({ type: 'validation', issues });
-                        vscode.window.showErrorMessage('Cannot save nuget.config due to validation errors.');
+                        vscode.window.showErrorMessage(MSG_CANNOT_SAVE_VALIDATION_ERRORS);
                         return;
                     }
                     try {
@@ -95,7 +96,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         edit.replace(document.uri, fullRange, newText);
                         const applied = await vscode.workspace.applyEdit(edit);
                         if (applied) {
-                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: 'Applied edit to document (unsaved)'});
+                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
                             this.log.debug('Applied WorkspaceEdit to nuget.config (awaiting user save)');
                         } else {
                             this.log.error('workspace.applyEdit returned false');
@@ -114,11 +115,11 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     if (!key) { return; }
                     // Ask the user via a native modal before deleting
                     const choice = await vscode.window.showWarningMessage(
-                        `Delete source '${key}'? This cannot be undone.`,
+                        MSG_DELETE_SOURCE_CONFIRM(key),
                         { modal: true },
-                        'Delete'
+                        MSG_DELETE_BUTTON
                     );
-                    if (choice !== 'Delete') { return; }
+                    if (choice !== MSG_DELETE_BUTTON) { return; }
                     try {
                         const ops: EditOp[] = [{ kind: 'deleteSource', key } as any];
                         model = applyEditOps(model, ops);
@@ -134,7 +135,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         edit.replace(document.uri, fullRange, newText);
                         const applied = await vscode.workspace.applyEdit(edit);
                         if (applied) {
-                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: 'Applied delete to document (unsaved)'});
+                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_DELETE});
                             this.log.debug(`Deleted source ${key} via WorkspaceEdit`);
                         } else {
                             this.log.error('workspace.applyEdit returned false');

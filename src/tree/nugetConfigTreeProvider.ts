@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { parseNugetConfig } from '../services/nugetConfigService';
-import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL } from '../constants';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE_GLOBAL_CONFIG_LABEL, TREE_SOURCES_SUFFIX, TREE_PARSE_ERROR, TREE_OPEN_EDITOR_COMMAND } from '../constants';
 import { findGlobalNugetConfig } from '../services/globalConfigLocator';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
@@ -53,12 +53,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         item.description = element.description;
         item.command = {
             command: 'nuget-config-editor.openVisualEditor',
-            title: 'Open Editor',
+            title: TREE_OPEN_EDITOR_COMMAND,
             arguments: [element.uri]
         };
         
         // Add globe icon for global config
-        if (element.label === 'Global nuget.config') {
+        if (element.label === TREE_GLOBAL_CONFIG_LABEL) {
             item.iconPath = new vscode.ThemeIcon('globe');
         }
         
@@ -79,9 +79,9 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             try {
                 const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(f));
                 const model = parseNugetConfig(text, false, f.fsPath, this.log);
-                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: `${model.sources.length} sources` });
+                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
             } catch {
-                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: 'parse error' });
+                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: TREE_PARSE_ERROR });
             }
         }
 
@@ -93,9 +93,9 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
                     const uri = vscode.Uri.file(globalPath);
                     const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
                     const model = parseNugetConfig(text, false, uri.fsPath, this.log);
-                    nodes.push({ uri, label: 'Global nuget.config', description: `${model.sources.length} sources` });
+                    nodes.push({ uri, label: TREE_GLOBAL_CONFIG_LABEL, description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
                 } catch {
-                    nodes.push({ uri: vscode.Uri.file(globalPath), label: 'Global nuget.config', description: 'parse error' });
+                    nodes.push({ uri: vscode.Uri.file(globalPath), label: TREE_GLOBAL_CONFIG_LABEL, description: TREE_PARSE_ERROR });
                 }
             }
         }

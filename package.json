@@ -127,7 +127,7 @@
           "type": "boolean",
           "default": false,
           "description": "Show the user global nuget.config (outside the workspace) in the NuGet Configs view if it exists.",
-          "markdownDescription": "Show the user global **nuget.config** (e.g. %APPDATA%/NuGet/NuGet.Config or ~/.config/NuGet/NuGet.Config) in the NuGet Configs view if it exists."
+          "markdownDescription": "Show the user global **nuget.config** in the NuGet Configs view if it exists:\n\n- **Windows**: `%APPDATA%/NuGet/NuGet.Config`\n- **macOS/Linux**: `~/.config/NuGet/NuGet.Config`"
         }
       }
     }
