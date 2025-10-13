@@ -19,6 +19,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
      */
     private isFileInWorkspace(uri: vscode.Uri): boolean {
         // Use VS Code's built-in method which handles platform differences correctly
+        // (path separators, case sensitivity on Windows vs Unix)
         return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
     }
 

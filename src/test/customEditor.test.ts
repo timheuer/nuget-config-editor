@@ -10,7 +10,8 @@ import * as fs from 'fs';
 suite('Custom Editor Provider', () => {
     /**
      * Helper to check if a URI would be considered inside a workspace.
-     * This uses VS Code's built-in API which handles platform differences correctly.
+     * This uses VS Code's built-in API which handles platform differences correctly
+     * (path separators, case sensitivity on Windows vs Unix).
      */
     function isFileInWorkspace(uri: vscode.Uri): boolean {
         return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
