@@ -61,6 +61,13 @@ function ensureStyles() {
     .sources-table th, .sources-table td { text-align:left; padding:8px 6px; vertical-align:middle; border-top:1px solid var(--vscode-editorWidget-border); }
     .sources-table thead th { font-weight:600; color:var(--vscode-foreground); }
     .sources-table th:last-child, .sources-table td:last-child { width:160px; }
+    /* Disabled source row styling */
+    .sources-table tbody tr.disabled-source td:first-child { text-decoration: line-through; opacity: 0.7; }
+    .sources-table tbody tr.disabled-source .urlCell { color: var(--vscode-descriptionForeground); font-style: italic; }
+    /* Status indicators with icons */
+    .status-indicator { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.9em; }
+    .status-indicator.enabled { color: var(--vscode-testing-iconPassed); }
+    .status-indicator.disabled { color: var(--vscode-testing-iconFailed); }
     .actions-cell { display:flex; gap:.4rem; align-items:center; flex-wrap:nowrap; justify-content:flex-start; white-space:nowrap; }
     .form-row { display:flex; gap:.5rem; align-items:baseline; }
     .form-row input[type="text"], .form-row input[type="url"], .form-row input { font-family: var(--vscode-font-family); font-size: 0.95rem; }
@@ -108,9 +115,20 @@ function render(model: any) {
         for (const s of model.sources) {
             const tr = document.createElement('tr');
             tr.dataset.key = s.key;
+            
+            // Apply disabled styling if source is disabled
+            if (!s.enabled) {
+                tr.classList.add('disabled-source');
+            }
+            
+            // Enhanced status indicator with icon and text
+            const statusIcon = s.enabled ? 'codicon-check-all' : 'codicon-circle-slash';
+            const statusClass = s.enabled ? 'enabled' : 'disabled';
+            const statusText = s.enabled ? UI.YES : UI.NO;
+            
             tr.innerHTML = `<td>${escapeHtml(s.key)}</td>`+
                 `<td class="urlCell">${escapeHtml(s.url)}</td>`+
-                `<td>${s.enabled ? UI.YES : UI.NO}</td>`+
+                `<td><span class="status-indicator ${statusClass}"><i class="codicon ${statusIcon}"></i>${statusText}</span></td>`+
                 `<td class="actions-cell">`+
                 `<button data-act='edit' aria-label='${UI.EDIT_SOURCE}' title='${UI.EDIT}' class='codicon codicon-edit vscode-btn icon-only'></button>`+
                 `<button data-act='toggle' aria-label='${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}' title='${s.enabled ? UI.DISABLE : UI.ENABLE}' class='codicon ${s.enabled ? 'codicon-circle-slash' : 'codicon-check'} vscode-btn icon-only'></button>`+
@@ -236,7 +254,13 @@ function enterEditRow(tr: HTMLTableRowElement, key: string, model: any) {
     const actionsCell = cells[3];
     keyCell.innerHTML = `<input value='${escapeHtml(source.key)}' class='small-input' aria-label='Edit source key' />`;
     urlCell.innerHTML = `<input value='${escapeHtml(source.url)}' class='full-input' aria-label='Edit source URL' />`;
-    enabledCell.textContent = source.enabled ? UI.YES : UI.NO;
+    
+    // Preserve the enhanced status display during edit
+    const statusIcon = source.enabled ? 'codicon-check-all' : 'codicon-circle-slash';
+    const statusClass = source.enabled ? 'enabled' : 'disabled';
+    const statusText = source.enabled ? UI.YES : UI.NO;
+    enabledCell.innerHTML = `<span class="status-indicator ${statusClass}"><i class="codicon ${statusIcon}"></i>${statusText}</span>`;
+    
     actionsCell.innerHTML = `<button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button> <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>`;
     actionsCell.addEventListener('click', function handler(e: any) {
         const b = e.target.closest('button');
