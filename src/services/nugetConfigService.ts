@@ -150,7 +150,8 @@ export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol
 function serializeWithDom(model: ConfigModel, originalXml: string, eol: string): string {
     try {
         // Normalize XML to ensure comments are parsed correctly by xmldom
-        // We need to remove newlines but preserve whitespace inside comments
+        // xmldom requires single-line XML to properly parse comments in multi-line formatted files
+        // Trade-off: whitespace inside comments will be normalized, but comment content is preserved
         let normalizedXml = originalXml.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
         
         // Parse the original XML using xmldom to preserve comments and structure
