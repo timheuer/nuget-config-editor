@@ -18,12 +18,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
      * Files outside the workspace (like global nuget.config) need different handling.
      */
     private isFileInWorkspace(uri: vscode.Uri): boolean {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return false;
-        }
-        const filePath = uri.fsPath;
-        return workspaceFolders.some(folder => filePath.startsWith(folder.uri.fsPath));
+        // Use VS Code's built-in method which handles platform differences correctly
+        return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
     }
 
     async resolveCustomTextEditor(
