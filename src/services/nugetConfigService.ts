@@ -1,4 +1,5 @@
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import * as vscode from 'vscode';
 import { ConfigModel, PackageSource, PackageSourceMapping } from '../model/types';
 import { Logger } from '@timheuer/vscode-ext-logger';
@@ -109,7 +110,12 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
 }
 
 export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol: string): string {
-    // Build XML object structure
+    // If preserveUnknown and original raw XML is available, use DOM-based merging to preserve comments and structure
+    if (preserveUnknown && model.rawUnknown) {
+        return serializeWithDom(model, model.rawUnknown, eol);
+    }
+
+    // Build XML object structure using fast-xml-parser for new files
     const configuration: any = {};
     if (model.sources.length) {
         configuration.packageSources = { add: model.sources.map(s => ({ '@_key': s.key, '@_value': s.url })) };
@@ -135,41 +141,235 @@ export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol
         suppressEmptyNode: true,
     });
 
-    // If preserveUnknown and original raw XML is available, merge changes into that original structure
-    if (preserveUnknown && model.rawUnknown) {
-        try {
-            const orig = parser.parse(model.rawUnknown) as any;
-            const origConfig = orig.configuration || orig['configuration'] || orig;
-            // Replace or delete known sections according to new configuration
-            if (configuration.packageSources) {
-                origConfig.packageSources = configuration.packageSources;
-            } else {
-                delete origConfig.packageSources;
-            }
-            if (configuration.disabledPackageSources) {
-                origConfig.disabledPackageSources = configuration.disabledPackageSources;
-            } else {
-                delete origConfig.disabledPackageSources;
-            }
-            if (configuration.packageSourceMapping) {
-                origConfig.packageSourceMapping = configuration.packageSourceMapping;
-            } else {
-                delete origConfig.packageSourceMapping;
-            }
-            // Ensure the top-level has configuration property if original did
-            const toBuild = { configuration: origConfig };
-            const built = builder.build(toBuild);
-            const normalized = built.replace(/\r?\n/g, eol);
-            return normalized;
-        } catch (e) {
-            // Fall back to building from scratch on error
-        }
-    }
-
     const built = builder.build({ configuration });
     // Basic newline normalization
     const normalized = built.replace(/\r?\n/g, eol);
     return normalized;
+}
+
+function serializeWithDom(model: ConfigModel, originalXml: string, eol: string): string {
+    try {
+        // Normalize XML to ensure comments are parsed correctly by xmldom
+        // Remove newlines and collapse multiple spaces to single space
+        const normalizedXml = originalXml.replace(/\n/g, '').replace(/\s{2,}/g, ' ').trim();
+        
+        // Parse the original XML using xmldom to preserve comments and structure
+        const domParser = new DOMParser();
+        const doc = domParser.parseFromString(normalizedXml, 'text/xml');
+        
+        // Get or create configuration element
+        let configElement = doc.getElementsByTagName('configuration')[0];
+        if (!configElement) {
+            configElement = doc.createElement('configuration');
+            doc.appendChild(configElement);
+        }
+        
+        // Update packageSources section
+        updatePackageSourcesSection(doc, configElement, model.sources);
+        
+        // Update disabledPackageSources section
+        updateDisabledSourcesSection(doc, configElement, model.sources);
+        
+        // Update packageSourceMapping section
+        updatePackageSourceMappingSection(doc, configElement, model.mappings);
+        
+        // Serialize back to string
+        const serializer = new XMLSerializer();
+        let result = serializer.serializeToString(doc);
+        
+        // Apply basic formatting to make output more readable
+        result = formatXmlOutput(result);
+        
+        // Normalize line endings
+        result = result.replace(/\r?\n/g, eol);
+        
+        return result;
+    } catch (error) {
+        // Fall back to fast-xml-parser if DOM parsing fails
+        return serializeWithFastXmlParser(model, eol);
+    }
+}
+
+function updatePackageSourcesSection(doc: Document, configElement: Element, sources: PackageSource[]): void {
+    // Find existing packageSources element
+    let packageSourcesElement = findDirectChild(configElement, 'packageSources');
+    
+    if (sources.length === 0) {
+        // Remove packageSources if no sources
+        if (packageSourcesElement) {
+            configElement.removeChild(packageSourcesElement);
+        }
+        return;
+    }
+    
+    if (!packageSourcesElement) {
+        // Create new packageSources element
+        packageSourcesElement = doc.createElement('packageSources');
+        configElement.appendChild(packageSourcesElement);
+    } else {
+        // Remove only <add> elements, preserve comments and other elements like <clear/>
+        const nodesToRemove: Node[] = [];
+        for (let i = 0; i < packageSourcesElement.childNodes.length; i++) {
+            const child = packageSourcesElement.childNodes[i];
+            if (child.nodeType === 1 && child.nodeName === 'add') { // Element node
+                nodesToRemove.push(child);
+            }
+        }
+        nodesToRemove.forEach(node => packageSourcesElement!.removeChild(node));
+    }
+    
+    // Add new source elements
+    for (const source of sources) {
+        const addElement = doc.createElement('add');
+        addElement.setAttribute('key', source.key);
+        addElement.setAttribute('value', source.url);
+        packageSourcesElement.appendChild(addElement);
+    }
+}
+
+function updateDisabledSourcesSection(doc: Document, configElement: Element, sources: PackageSource[]): void {
+    const disabledSources = sources.filter(s => !s.enabled);
+    let disabledElement = findDirectChild(configElement, 'disabledPackageSources');
+    
+    if (disabledSources.length === 0) {
+        // Remove disabledPackageSources if no disabled sources
+        if (disabledElement) {
+            configElement.removeChild(disabledElement);
+        }
+        return;
+    }
+    
+    if (!disabledElement) {
+        // Create new disabledPackageSources element after packageSources
+        disabledElement = doc.createElement('disabledPackageSources');
+        const packageSourcesElement = findDirectChild(configElement, 'packageSources');
+        if (packageSourcesElement && packageSourcesElement.nextSibling) {
+            configElement.insertBefore(disabledElement, packageSourcesElement.nextSibling);
+        } else {
+            configElement.appendChild(disabledElement);
+        }
+    } else {
+        // Clear existing add elements
+        while (disabledElement.firstChild) {
+            disabledElement.removeChild(disabledElement.firstChild);
+        }
+    }
+    
+    // Add disabled source elements
+    for (const source of disabledSources) {
+        const addElement = doc.createElement('add');
+        addElement.setAttribute('key', source.key);
+        addElement.setAttribute('value', 'true');
+        disabledElement.appendChild(addElement);
+    }
+}
+
+function updatePackageSourceMappingSection(doc: Document, configElement: Element, mappings: PackageSourceMapping[]): void {
+    let mappingElement = findDirectChild(configElement, 'packageSourceMapping');
+    
+    if (mappings.length === 0) {
+        // Remove packageSourceMapping if no mappings
+        if (mappingElement) {
+            configElement.removeChild(mappingElement);
+        }
+        return;
+    }
+    
+    if (!mappingElement) {
+        // Create new packageSourceMapping element
+        mappingElement = doc.createElement('packageSourceMapping');
+        configElement.appendChild(mappingElement);
+    } else {
+        // Clear existing content
+        while (mappingElement.firstChild) {
+            mappingElement.removeChild(mappingElement.firstChild);
+        }
+    }
+    
+    // Add mapping elements
+    for (const mapping of mappings) {
+        const packageSourceElement = doc.createElement('packageSource');
+        packageSourceElement.setAttribute('key', mapping.sourceKey);
+        
+        for (const pattern of mapping.patterns) {
+            const packageElement = doc.createElement('package');
+            packageElement.setAttribute('pattern', pattern);
+            packageSourceElement.appendChild(packageElement);
+        }
+        
+        mappingElement.appendChild(packageSourceElement);
+    }
+}
+
+function findDirectChild(parent: Element, tagName: string): Element | null {
+    for (let i = 0; i < parent.childNodes.length; i++) {
+        const child = parent.childNodes[i];
+        if (child.nodeType === 1 && child.nodeName === tagName) {
+            return child as Element;
+        }
+    }
+    return null;
+}
+
+function formatXmlOutput(xml: string): string {
+    // Basic formatting to add indentation
+    let formatted = xml;
+    
+    // Add newlines after closing tags for better readability
+    formatted = formatted.replace(/<\/packageSources>/g, '\n  </packageSources>');
+    formatted = formatted.replace(/<\/disabledPackageSources>/g, '\n  </disabledPackageSources>');
+    formatted = formatted.replace(/<\/packageSourceMapping>/g, '\n  </packageSourceMapping>');
+    formatted = formatted.replace(/<\/configuration>/g, '\n</configuration>');
+    
+    // Add indentation for add elements
+    formatted = formatted.replace(/<add /g, '\n    <add ');
+    
+    // Add indentation for packageSource elements
+    formatted = formatted.replace(/<packageSource /g, '\n    <packageSource ');
+    formatted = formatted.replace(/<\/packageSource>/g, '\n    </packageSource>');
+    
+    // Add indentation for package elements
+    formatted = formatted.replace(/<package /g, '\n      <package ');
+    
+    // Clean up multiple consecutive newlines
+    formatted = formatted.replace(/\n\n+/g, '\n');
+    
+    // Add newline after opening packageSources/disabledPackageSources/packageSourceMapping tags
+    formatted = formatted.replace(/<packageSources>/g, '<packageSources>\n');
+    formatted = formatted.replace(/<disabledPackageSources>/g, '<disabledPackageSources>\n');
+    formatted = formatted.replace(/<packageSourceMapping>/g, '<packageSourceMapping>\n');
+    formatted = formatted.replace(/<configuration>/g, '<configuration>\n  ');
+    
+    return formatted;
+}
+
+function serializeWithFastXmlParser(model: ConfigModel, eol: string): string {
+    const configuration: any = {};
+    if (model.sources.length) {
+        configuration.packageSources = { add: model.sources.map(s => ({ '@_key': s.key, '@_value': s.url })) };
+    }
+    const disabled = model.sources.filter(s => !s.enabled);
+    if (disabled.length) {
+        configuration.disabledPackageSources = { add: disabled.map(s => ({ '@_key': s.key, '@_value': 'true' })) };
+    }
+    if (model.mappings.length) {
+        configuration.packageSourceMapping = {
+            packageSource: model.mappings.map(m => ({
+                '@_key': m.sourceKey,
+                package: m.patterns.map(p => ({ '@_pattern': p }))
+            }))
+        };
+    }
+
+    const builder = new XMLBuilder({
+        ignoreAttributes: false,
+        suppressBooleanAttributes: false,
+        format: true,
+        suppressEmptyNode: true,
+    });
+
+    const built = builder.build({ configuration });
+    return built.replace(/\r?\n/g, eol);
 }
 
 

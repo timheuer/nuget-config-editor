@@ -44,4 +44,34 @@ suite('NuGet Config Parsing & Serialization', () => {
         const model2 = parseNugetConfig(xml, false);
         assert.strictEqual(model2.sources.length, model.sources.length);
     });
+
+    test('preserve XML declaration and comments', () => {
+        const xmlWithComments = `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <!--Begin: Package sources managed by Dependency Flow automation. Do not edit the sources below.-->
+    <!--  Begin: Package sources from dotnet-aspnetcore -->
+    <!--  End: Package sources from dotnet-aspnetcore -->
+    <add key="dotnet-public" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-public/nuget/v3/index.json" />
+    <add key="dotnet-eng" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-eng/nuget/v3/index.json" />
+  </packageSources>
+</configuration>`;
+        
+        const model = parseNugetConfig(xmlWithComments, true);
+        // Toggle a source to trigger a change
+        const dotnetPublic = model.sources.find(s => s.key === 'dotnet-public');
+        if (dotnetPublic) {
+            dotnetPublic.enabled = false;
+        }
+        
+        const xml = serializeModel(model, true, '\n');
+        
+        // Should preserve XML declaration
+        assert.ok(xml.includes('<?xml version="1.0" encoding="utf-8"?>'), 'XML declaration should be preserved');
+        
+        // Should preserve comments
+        assert.ok(xml.includes('<!--Begin: Package sources managed by Dependency Flow automation. Do not edit the sources below.-->'), 'Comments should be preserved');
+        assert.ok(xml.includes('<!--  Begin: Package sources from dotnet-aspnetcore -->'), 'Comments should be preserved');
+    });
 });
