@@ -52,7 +52,15 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 		if (target) {
-			await vscode.commands.executeCommand('vscode.openWith', target, 'nugetConfigEditor.visualEditor');
+			// For files outside the workspace, we need to ensure the document is opened first
+			// This helps VS Code recognize the file and apply the custom editor
+			try {
+				const doc = await vscode.workspace.openTextDocument(target);
+				await vscode.commands.executeCommand('vscode.openWith', target, 'nugetConfigEditor.visualEditor');
+			} catch (err) {
+				log.error('Failed to open nuget.config', { error: String(err) });
+				vscode.window.showErrorMessage(`Failed to open nuget.config: ${err}`);
+			}
 		}
 	}));
 
