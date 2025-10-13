@@ -1,5 +1,4 @@
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import * as vscode from 'vscode';
 import { ConfigModel, PackageSource, PackageSourceMapping } from '../model/types';
 import { Logger } from '@timheuer/vscode-ext-logger';
@@ -110,9 +109,9 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
 }
 
 export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol: string): string {
-    // If preserveUnknown and original raw XML is available, use DOM-based merging to preserve comments and structure
+    // If preserveUnknown and original raw XML is available, use string-based replacement to preserve structure
     if (preserveUnknown && model.rawUnknown) {
-        return serializeWithDom(model, model.rawUnknown, eol);
+        return preserveXmlStructure(model, model.rawUnknown, eol);
     }
 
     // Build XML object structure using fast-xml-parser for new files
@@ -147,230 +146,146 @@ export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol
     return normalized;
 }
 
-function serializeWithDom(model: ConfigModel, originalXml: string, eol: string): string {
-    try {
-        // Normalize XML to ensure comments are parsed correctly by xmldom
-        // xmldom requires single-line XML to properly parse comments in multi-line formatted files
-        // Trade-off: whitespace inside comments will be normalized, but comment content is preserved
-        let normalizedXml = originalXml.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
-        
-        // Parse the original XML using xmldom to preserve comments and structure
-        const domParser = new DOMParser();
-        const doc = domParser.parseFromString(normalizedXml, 'text/xml');
-        
-        // Get or create configuration element
-        let configElement = doc.getElementsByTagName('configuration')[0];
-        if (!configElement) {
-            configElement = doc.createElement('configuration');
-            doc.appendChild(configElement);
-        }
-        
-        // Update packageSources section
-        updatePackageSourcesSection(doc, configElement, model.sources);
-        
-        // Update disabledPackageSources section
-        updateDisabledSourcesSection(doc, configElement, model.sources);
-        
-        // Update packageSourceMapping section
-        updatePackageSourceMappingSection(doc, configElement, model.mappings);
-        
-        // Serialize back to string
-        const serializer = new XMLSerializer();
-        let result = serializer.serializeToString(doc);
-        
-        // Apply basic formatting to make output more readable
-        result = formatXmlOutput(result);
-        
-        // Normalize line endings
-        result = result.replace(/\r?\n/g, eol);
-        
-        return result;
-    } catch (error) {
-        // Fall back to fast-xml-parser if DOM parsing fails
-        return serializeWithFastXmlParser(model, eol);
-    }
+function preserveXmlStructure(model: ConfigModel, originalXml: string, eol: string): string {
+    let result = originalXml;
+    
+    // Update packageSources section
+    result = updatePackageSourcesInXml(result, model.sources, eol);
+    
+    // Update disabledPackageSources section
+    const disabled = model.sources.filter(s => !s.enabled);
+    result = updateDisabledSourcesInXml(result, disabled, eol);
+    
+    // Update packageSourceMapping section
+    result = updateMappingsInXml(result, model.mappings, eol);
+    
+    // Normalize line endings
+    result = result.replace(/\r?\n/g, eol);
+    
+    return result;
 }
 
-function updatePackageSourcesSection(doc: Document, configElement: Element, sources: PackageSource[]): void {
-    // Find existing packageSources element
-    let packageSourcesElement = findDirectChild(configElement, 'packageSources');
+function updatePackageSourcesInXml(xml: string, sources: PackageSource[], eol: string): string {
+    // Find the packageSources section
+    const packageSourcesRegex = /<packageSources>([\s\S]*?)<\/packageSources>/;
+    const match = xml.match(packageSourcesRegex);
     
-    if (sources.length === 0) {
-        // Remove packageSources if no sources
-        if (packageSourcesElement) {
-            configElement.removeChild(packageSourcesElement);
+    if (!match) {
+        // No existing packageSources section - add one if there are sources
+        if (sources.length > 0) {
+            const newSection = buildPackageSourcesSection(sources, eol);
+            return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
         }
-        return;
+        return xml;
     }
     
-    if (!packageSourcesElement) {
-        // Create new packageSources element
-        packageSourcesElement = doc.createElement('packageSources');
-        configElement.appendChild(packageSourcesElement);
+    const [fullMatch, innerContent] = match;
+    
+    // Extract everything that's NOT an <add> element (comments, clear, etc.)
+    const nonAddContent = innerContent.replace(/<add\s+[^>]*\/>/g, '').replace(/<add\s+[^>]*>[\s\S]*?<\/add>/g, '');
+    
+    // Build new add elements with proper indentation
+    const indent = detectIndentation(innerContent);
+    const addElements = sources.map(s => 
+        `${indent}<add key="${escapeXmlAttribute(s.key)}" value="${escapeXmlAttribute(s.url)}" />`
+    ).join(eol);
+    
+    // Reconstruct the section preserving non-add content
+    const newInnerContent = nonAddContent.trimEnd() + (nonAddContent.trim() ? eol : '') + addElements + eol + '  ';
+    const newSection = `<packageSources>${newInnerContent}</packageSources>`;
+    
+    return xml.replace(fullMatch, newSection);
+}
+
+function updateDisabledSourcesInXml(xml: string, disabled: PackageSource[], eol: string): string {
+    const disabledRegex = /<disabledPackageSources>([\s\S]*?)<\/disabledPackageSources>/;
+    const match = xml.match(disabledRegex);
+    
+    if (disabled.length === 0) {
+        // Remove the section if no disabled sources
+        if (match) {
+            return xml.replace(disabledRegex, '');
+        }
+        return xml;
+    }
+    
+    const newSection = buildDisabledSourcesSection(disabled, eol);
+    
+    if (match) {
+        // Replace existing section
+        return xml.replace(disabledRegex, newSection);
     } else {
-        // Remove only <add> elements, preserve comments and other elements like <clear/>
-        const nodesToRemove: Node[] = [];
-        for (let i = 0; i < packageSourcesElement.childNodes.length; i++) {
-            const child = packageSourcesElement.childNodes[i];
-            if (child.nodeType === 1 && child.nodeName === 'add') { // Element node
-                nodesToRemove.push(child);
-            }
-        }
-        nodesToRemove.forEach(node => packageSourcesElement!.removeChild(node));
-    }
-    
-    // Add new source elements
-    for (const source of sources) {
-        const addElement = doc.createElement('add');
-        addElement.setAttribute('key', source.key);
-        addElement.setAttribute('value', source.url);
-        packageSourcesElement.appendChild(addElement);
-    }
-}
-
-function updateDisabledSourcesSection(doc: Document, configElement: Element, sources: PackageSource[]): void {
-    const disabledSources = sources.filter(s => !s.enabled);
-    let disabledElement = findDirectChild(configElement, 'disabledPackageSources');
-    
-    if (disabledSources.length === 0) {
-        // Remove disabledPackageSources if no disabled sources
-        if (disabledElement) {
-            configElement.removeChild(disabledElement);
-        }
-        return;
-    }
-    
-    if (!disabledElement) {
-        // Create new disabledPackageSources element after packageSources
-        disabledElement = doc.createElement('disabledPackageSources');
-        const packageSourcesElement = findDirectChild(configElement, 'packageSources');
-        if (packageSourcesElement && packageSourcesElement.nextSibling) {
-            configElement.insertBefore(disabledElement, packageSourcesElement.nextSibling);
+        // Add new section after packageSources
+        const packageSourcesRegex = /<\/packageSources>/;
+        if (packageSourcesRegex.test(xml)) {
+            return xml.replace(packageSourcesRegex, `</packageSources>${eol}  ${newSection}`);
         } else {
-            configElement.appendChild(disabledElement);
+            // Add before closing configuration tag
+            return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
         }
-    } else {
-        // Clear existing add elements
-        while (disabledElement.firstChild) {
-            disabledElement.removeChild(disabledElement.firstChild);
-        }
-    }
-    
-    // Add disabled source elements
-    for (const source of disabledSources) {
-        const addElement = doc.createElement('add');
-        addElement.setAttribute('key', source.key);
-        addElement.setAttribute('value', 'true');
-        disabledElement.appendChild(addElement);
     }
 }
 
-function updatePackageSourceMappingSection(doc: Document, configElement: Element, mappings: PackageSourceMapping[]): void {
-    let mappingElement = findDirectChild(configElement, 'packageSourceMapping');
+function updateMappingsInXml(xml: string, mappings: PackageSourceMapping[], eol: string): string {
+    const mappingRegex = /<packageSourceMapping>([\s\S]*?)<\/packageSourceMapping>/;
+    const match = xml.match(mappingRegex);
     
     if (mappings.length === 0) {
-        // Remove packageSourceMapping if no mappings
-        if (mappingElement) {
-            configElement.removeChild(mappingElement);
+        // Remove the section if no mappings
+        if (match) {
+            return xml.replace(mappingRegex, '');
         }
-        return;
+        return xml;
     }
     
-    if (!mappingElement) {
-        // Create new packageSourceMapping element
-        mappingElement = doc.createElement('packageSourceMapping');
-        configElement.appendChild(mappingElement);
+    const newSection = buildMappingsSection(mappings, eol);
+    
+    if (match) {
+        // Replace existing section
+        return xml.replace(mappingRegex, newSection);
     } else {
-        // Clear existing content
-        while (mappingElement.firstChild) {
-            mappingElement.removeChild(mappingElement.firstChild);
-        }
-    }
-    
-    // Add mapping elements
-    for (const mapping of mappings) {
-        const packageSourceElement = doc.createElement('packageSource');
-        packageSourceElement.setAttribute('key', mapping.sourceKey);
-        
-        for (const pattern of mapping.patterns) {
-            const packageElement = doc.createElement('package');
-            packageElement.setAttribute('pattern', pattern);
-            packageSourceElement.appendChild(packageElement);
-        }
-        
-        mappingElement.appendChild(packageSourceElement);
+        // Add before closing configuration tag
+        return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
     }
 }
 
-function findDirectChild(parent: Element, tagName: string): Element | null {
-    for (let i = 0; i < parent.childNodes.length; i++) {
-        const child = parent.childNodes[i];
-        if (child.nodeType === 1 && child.nodeName === tagName) {
-            return child as Element;
-        }
-    }
-    return null;
+function buildPackageSourcesSection(sources: PackageSource[], eol: string): string {
+    const addElements = sources.map(s => 
+        `    <add key="${escapeXmlAttribute(s.key)}" value="${escapeXmlAttribute(s.url)}" />`
+    ).join(eol);
+    return `<packageSources>${eol}${addElements}${eol}  </packageSources>`;
 }
 
-function formatXmlOutput(xml: string): string {
-    // Basic formatting to add indentation
-    let formatted = xml;
-    
-    // Add newlines after closing tags for better readability
-    formatted = formatted.replace(/<\/packageSources>/g, '\n  </packageSources>');
-    formatted = formatted.replace(/<\/disabledPackageSources>/g, '\n  </disabledPackageSources>');
-    formatted = formatted.replace(/<\/packageSourceMapping>/g, '\n  </packageSourceMapping>');
-    formatted = formatted.replace(/<\/configuration>/g, '\n</configuration>');
-    
-    // Add indentation for add elements
-    formatted = formatted.replace(/<add /g, '\n    <add ');
-    
-    // Add indentation for packageSource elements
-    formatted = formatted.replace(/<packageSource /g, '\n    <packageSource ');
-    formatted = formatted.replace(/<\/packageSource>/g, '\n    </packageSource>');
-    
-    // Add indentation for package elements
-    formatted = formatted.replace(/<package /g, '\n      <package ');
-    
-    // Clean up multiple consecutive newlines
-    formatted = formatted.replace(/\n\n+/g, '\n');
-    
-    // Add newline after opening packageSources/disabledPackageSources/packageSourceMapping tags
-    formatted = formatted.replace(/<packageSources>/g, '<packageSources>\n');
-    formatted = formatted.replace(/<disabledPackageSources>/g, '<disabledPackageSources>\n');
-    formatted = formatted.replace(/<packageSourceMapping>/g, '<packageSourceMapping>\n');
-    formatted = formatted.replace(/<configuration>/g, '<configuration>\n  ');
-    
-    return formatted;
+function buildDisabledSourcesSection(disabled: PackageSource[], eol: string): string {
+    const addElements = disabled.map(s => 
+        `    <add key="${escapeXmlAttribute(s.key)}" value="true" />`
+    ).join(eol);
+    return `<disabledPackageSources>${eol}${addElements}${eol}  </disabledPackageSources>`;
 }
 
-function serializeWithFastXmlParser(model: ConfigModel, eol: string): string {
-    const configuration: any = {};
-    if (model.sources.length) {
-        configuration.packageSources = { add: model.sources.map(s => ({ '@_key': s.key, '@_value': s.url })) };
-    }
-    const disabled = model.sources.filter(s => !s.enabled);
-    if (disabled.length) {
-        configuration.disabledPackageSources = { add: disabled.map(s => ({ '@_key': s.key, '@_value': 'true' })) };
-    }
-    if (model.mappings.length) {
-        configuration.packageSourceMapping = {
-            packageSource: model.mappings.map(m => ({
-                '@_key': m.sourceKey,
-                package: m.patterns.map(p => ({ '@_pattern': p }))
-            }))
-        };
-    }
+function buildMappingsSection(mappings: PackageSourceMapping[], eol: string): string {
+    const packageSources = mappings.map(m => {
+        const patterns = m.patterns.map(p => 
+            `      <package pattern="${escapeXmlAttribute(p)}" />`
+        ).join(eol);
+        return `    <packageSource key="${escapeXmlAttribute(m.sourceKey)}">${eol}${patterns}${eol}    </packageSource>`;
+    }).join(eol);
+    return `<packageSourceMapping>${eol}${packageSources}${eol}  </packageSourceMapping>`;
+}
 
-    const builder = new XMLBuilder({
-        ignoreAttributes: false,
-        suppressBooleanAttributes: false,
-        format: true,
-        suppressEmptyNode: true,
-    });
+function escapeXmlAttribute(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
 
-    const built = builder.build({ configuration });
-    return built.replace(/\r?\n/g, eol);
+function detectIndentation(xmlContent: string): string {
+    // Try to detect the indentation used in the XML
+    const match = xmlContent.match(/\n(\s+)</);
+    return match ? match[1] : '    '; // Default to 4 spaces
 }
 
 

@@ -61,9 +61,7 @@
         "viewType": "nugetConfigEditor.visualEditor",
         "displayName": "NuGet Config Editor",
         "selector": [
-          {
-            "filenamePattern": "**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]"
-          }
+          { "filenamePattern": "**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]" }
         ],
         "priority": "option"
       }
@@ -154,7 +152,6 @@
     "@timheuer/vscode-ext-logger": "^0.1.35",
     "@vscode-elements/elements-lite": "^0.4.0",
     "@vscode/codicons": "^0.0.40",
-    "@xmldom/xmldom": "^0.8.11",
     "fast-xml-parser": "^4.4.0"
   },
   "devDependencies": {

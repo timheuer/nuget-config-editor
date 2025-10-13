@@ -45,7 +45,7 @@ suite('NuGet Config Parsing & Serialization', () => {
         assert.strictEqual(model2.sources.length, model.sources.length);
     });
 
-    test('preserve XML declaration and comments', () => {
+    test('preserve XML declaration, comments and structure', () => {
         const xmlWithComments = `<?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
@@ -59,21 +59,31 @@ suite('NuGet Config Parsing & Serialization', () => {
 </configuration>`;
         
         const model = parseNugetConfig(xmlWithComments, true);
-        // Toggle a source to trigger a change
-        const dotnetPublic = model.sources.find(s => s.key === 'dotnet-public');
-        if (dotnetPublic) {
-            dotnetPublic.enabled = false;
+        // Disable one source
+        const dotnetEng = model.sources.find(s => s.key === 'dotnet-eng');
+        if (dotnetEng) {
+            dotnetEng.enabled = false;
         }
         
         const xml = serializeModel(model, true, '\n');
         
-        // Should preserve XML declaration
+        // Verify XML declaration preserved
         assert.ok(xml.includes('<?xml version="1.0" encoding="utf-8"?>'), 'XML declaration should be preserved');
         
-        // Should preserve comments (content preserved, whitespace may be normalized)
-        assert.ok(xml.includes('<!--Begin: Package sources managed by Dependency Flow'), 'First comment should be preserved');
-        assert.ok(xml.includes('Begin: Package sources from dotnet-aspnetcore'), 'Second comment content should be preserved');
-        assert.ok(xml.includes('<clear'), '<clear /> element should be preserved');
-        assert.ok(xml.includes('<disabledPackageSources>'), 'disabledPackageSources should be added for disabled source');
+        // Verify comments preserved in their original locations
+        assert.ok(xml.includes('<!--Begin: Package sources managed by Dependency Flow automation'), 'First comment should be preserved');
+        assert.ok(xml.includes('<!--  Begin: Package sources from dotnet-aspnetcore -->'), 'Second comment should be preserved with exact spacing');
+        assert.ok(xml.includes('<!--  End: Package sources from dotnet-aspnetcore -->'), 'Third comment should be preserved');
+        
+        // Verify <clear /> preserved on its own line
+        assert.ok(/\n\s*<clear\s*\/>/m.test(xml), '<clear /> should be preserved on its own line');
+        
+        // Verify comments stay on separate lines (not bunched together)
+        const commentLines = xml.split('\n').filter(line => line.includes('<!--'));
+        assert.ok(commentLines.length >= 3, 'Comments should remain on separate lines');
+        
+        // Verify disabledPackageSources added correctly
+        assert.ok(xml.includes('<disabledPackageSources>'), 'disabledPackageSources section should be added');
+        assert.ok(xml.includes('<add key="dotnet-eng" value="true"'), 'dotnet-eng should be disabled');
     });
 });
