@@ -29,6 +29,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         _token: vscode.CancellationToken
     ): Promise<void> {
         this.log.info(MSG_OPENING_EDITOR);
+        this.log.info(`Opening file: ${document.uri.fsPath}`);
     // Allow loading codicons assets (fonts) from the bundled dist/webview folder so they are available in the VSIX
     webviewPanel.webview.options = {
         enableScripts: true,
@@ -61,6 +62,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         const disposables: vscode.Disposable[] = [];
 
         disposables.push(webviewPanel.webview.onDidReceiveMessage(async (msg: any) => {
+            this.log.debug(`Received message: ${msg?.type}`);
             switch (msg?.type) {
                 case 'ready':
                     sendInit();
@@ -100,6 +102,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     }
                     try {
                         const isInWorkspace = this.isFileInWorkspace(document.uri);
+                        this.log.info(`Edit operation: file is ${isInWorkspace ? 'in' : 'outside'} workspace`);
                         
                         if (isInWorkspace) {
                             // For workspace files: use WorkspaceEdit so Undo/Redo and editor dirty state behave natively
