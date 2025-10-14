@@ -100,14 +100,24 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     this.log.debug(`Validation found ${issues.length} issue(s)`, { issues: JSON.stringify(issues) });
                     // Always send validation results back to the webview
                     webviewPanel.webview.postMessage({ type: 'validation', issues });
-                    // If there are errors, don't write; just send the updated model for display
-                    if (issues.some(i => i.level === 'error')) {
-                        this.log.warn('Edit blocked due to validation errors');
+                    
+                    const isInWorkspace = this.isFileInWorkspace(document.uri);
+                    const hasErrors = issues.some(i => i.level === 'error');
+                    
+                    // For workspace files, validation errors block edits to prevent dirty state with invalid data
+                    // For non-workspace files (like global config), allow edits even with errors since:
+                    // 1. Errors may be pre-existing in the file
+                    // 2. Direct file writes don't create dirty state
+                    // 3. Users need to be able to edit their global config even if it has some invalid URLs
+                    if (hasErrors && isInWorkspace) {
+                        this.log.warn('Edit blocked due to validation errors (workspace file)');
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                         break;
                     }
+                    if (hasErrors && !isInWorkspace) {
+                        this.log.info('Proceeding with edit despite validation errors (non-workspace file)');
+                    }
                     try {
-                        const isInWorkspace = this.isFileInWorkspace(document.uri);
                         this.log.info(`Edit operation: file is ${isInWorkspace ? 'in' : 'outside'} workspace`);
                         
                         if (isInWorkspace) {
@@ -153,12 +163,19 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         model = applyEditOps(model, ops);
                         const issues = validate(model);
                         webviewPanel.webview.postMessage({ type: 'validation', issues });
-                        if (issues.some(i => i.level === 'error')) {
+                        
+                        const isInWorkspace = this.isFileInWorkspace(document.uri);
+                        const hasErrors = issues.some(i => i.level === 'error');
+                        
+                        // Apply same logic as edit handler: block validation errors only for workspace files
+                        if (hasErrors && isInWorkspace) {
+                            this.log.warn('Delete blocked due to validation errors (workspace file)');
                             webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                             break;
                         }
-                        
-                        const isInWorkspace = this.isFileInWorkspace(document.uri);
+                        if (hasErrors && !isInWorkspace) {
+                            this.log.info('Proceeding with delete despite validation errors (non-workspace file)');
+                        }
                         
                         if (isInWorkspace) {
                             // For workspace files: use WorkspaceEdit
