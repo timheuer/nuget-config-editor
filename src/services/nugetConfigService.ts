@@ -181,8 +181,9 @@ function updatePackageSourcesInXml(xml: string, sources: PackageSource[], eol: s
     
     const [fullMatch, innerContent] = match;
     
-    // Extract everything that's NOT an <add> element (comments, clear, etc.)
-    const nonAddContent = innerContent.replace(/<add\s+[^>]*\/>/g, '').replace(/<add\s+[^>]*>[\s\S]*?<\/add>/g, '');
+    // Remove <add> elements while preserving comments and other content
+    // Strategy: split by lines, filter out lines with <add> tags that are NOT inside comments
+    const nonAddContent = removeAddElementsPreservingComments(innerContent);
     
     // Build new add elements with proper indentation
     const indent = detectIndentation(innerContent);
@@ -195,6 +196,64 @@ function updatePackageSourcesInXml(xml: string, sources: PackageSource[], eol: s
     const newSection = `<packageSources>${newInnerContent}</packageSources>`;
     
     return xml.replace(fullMatch, newSection);
+}
+
+function removeAddElementsPreservingComments(content: string): string {
+    // Parse the content to track comment boundaries and only remove <add> elements outside comments
+    let result = '';
+    let inComment = false;
+    let i = 0;
+    
+    while (i < content.length) {
+        // Check for comment start
+        if (!inComment && content.substring(i, i + 4) === '<!--') {
+            inComment = true;
+            result += '<!--';
+            i += 4;
+            continue;
+        }
+        
+        // Check for comment end
+        if (inComment && content.substring(i, i + 3) === '-->') {
+            inComment = false;
+            result += '-->';
+            i += 3;
+            continue;
+        }
+        
+        // If we're in a comment, just copy the character
+        if (inComment) {
+            result += content[i];
+            i++;
+            continue;
+        }
+        
+        // Outside comment: check for <add> tags
+        if (content.substring(i, i + 4) === '<add') {
+            // Find the end of this add element
+            const selfClosing = content.indexOf('/>', i);
+            const openClosing = content.indexOf('</add>', i);
+            
+            let endPos = -1;
+            if (selfClosing !== -1 && (openClosing === -1 || selfClosing < openClosing)) {
+                endPos = selfClosing + 2;
+            } else if (openClosing !== -1) {
+                endPos = openClosing + 6;
+            }
+            
+            if (endPos !== -1) {
+                // Skip the entire <add> element
+                i = endPos;
+                continue;
+            }
+        }
+        
+        // Copy character
+        result += content[i];
+        i++;
+    }
+    
+    return result;
 }
 
 function updateDisabledSourcesInXml(xml: string, disabled: PackageSource[], eol: string): string {
