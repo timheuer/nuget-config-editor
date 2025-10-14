@@ -4,11 +4,15 @@ import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE
 import { findGlobalNugetConfig } from '../services/globalConfigLocator';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
-interface NodeData { uri: vscode.Uri; label: string; description?: string }
+interface NodeData { uri?: vscode.Uri; label: string; description?: string; isSearching?: boolean }
+
+// Minimum duration to show the searching status (in milliseconds)
+const SEARCHING_STATUS_MIN_DURATION_MS = 100;
 
 export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData> {
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+    private isSearching = false;
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
         // Watch for nuget.config file changes and refresh the tree
@@ -45,27 +49,57 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         return excludePatterns.some(pattern => normalizedPath.includes(pattern));
     }
 
-    refresh(): void { this._onDidChangeTreeData.fire(); }
+    refresh(): void { 
+        this.isSearching = true;
+        this._onDidChangeTreeData.fire(); 
+    }
 
     getTreeItem(element: NodeData): vscode.TreeItem {
         const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
-        item.resourceUri = element.uri;
-        item.description = element.description;
-        item.command = {
-            command: 'nuget-config-editor.openVisualEditor',
-            title: TREE_OPEN_EDITOR_COMMAND,
-            arguments: [element.uri]
-        };
         
-        // Add globe icon for global config
-        if (element.label === TREE_GLOBAL_CONFIG_LABEL) {
-            item.iconPath = new vscode.ThemeIcon('globe');
+        // Handle searching status node
+        if (element.isSearching) {
+            item.iconPath = new vscode.ThemeIcon('loading~spin');
+            return item;
+        }
+        
+        // Only set command and properties for regular nodes (not searching nodes)
+        if (element.uri) {
+            item.resourceUri = element.uri;
+            item.description = element.description;
+            item.command = {
+                command: 'nuget-config-editor.openVisualEditor',
+                title: TREE_OPEN_EDITOR_COMMAND,
+                arguments: [element.uri]
+            };
+            
+            // Add globe icon for global config
+            if (element.label === TREE_GLOBAL_CONFIG_LABEL) {
+                item.iconPath = new vscode.ThemeIcon('globe');
+            }
         }
         
         return item;
     }
 
     async getChildren(_element?: NodeData): Promise<NodeData[]> {
+        // Show searching status if a search is in progress
+        if (this.isSearching) {
+            this.isSearching = false;
+            // Return a temporary searching node
+            const searchingNode: NodeData = { 
+                label: 'Searching for nuget.config files in this workspace...', 
+                isSearching: true 
+            };
+            
+            // Trigger actual search asynchronously and refresh when done
+            this.performSearch().then(() => {
+                this._onDidChangeTreeData.fire();
+            });
+            
+            return [searchingNode];
+        }
+        
         const showGlobal = vscode.workspace.getConfiguration('nugetConfigEditor').get<boolean>('showGlobalConfig', false);
         const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 50);
         const seen = new Set<string>();
@@ -101,6 +135,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         }
 
         return nodes;
+    }
+    
+    private async performSearch(): Promise<void> {
+        // Ensure the searching status is visible for a minimum duration
+        // The actual search happens in the next getChildren() call
+        await new Promise(resolve => setTimeout(resolve, SEARCHING_STATUS_MIN_DURATION_MS));
     }
 }
 
