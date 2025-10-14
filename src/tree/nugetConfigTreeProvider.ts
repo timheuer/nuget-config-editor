@@ -6,6 +6,9 @@ import { Logger } from '@timheuer/vscode-ext-logger';
 
 interface NodeData { uri?: vscode.Uri; label: string; description?: string; isSearching?: boolean }
 
+// Minimum duration to show the searching status (in milliseconds)
+const SEARCHING_STATUS_MIN_DURATION_MS = 100;
+
 export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData> {
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -60,17 +63,20 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             return item;
         }
         
-        item.resourceUri = element.uri;
-        item.description = element.description;
-        item.command = {
-            command: 'nuget-config-editor.openVisualEditor',
-            title: TREE_OPEN_EDITOR_COMMAND,
-            arguments: [element.uri]
-        };
-        
-        // Add globe icon for global config
-        if (element.label === TREE_GLOBAL_CONFIG_LABEL) {
-            item.iconPath = new vscode.ThemeIcon('globe');
+        // Only set command and properties for regular nodes (not searching nodes)
+        if (element.uri) {
+            item.resourceUri = element.uri;
+            item.description = element.description;
+            item.command = {
+                command: 'nuget-config-editor.openVisualEditor',
+                title: TREE_OPEN_EDITOR_COMMAND,
+                arguments: [element.uri]
+            };
+            
+            // Add globe icon for global config
+            if (element.label === TREE_GLOBAL_CONFIG_LABEL) {
+                item.iconPath = new vscode.ThemeIcon('globe');
+            }
         }
         
         return item;
@@ -132,10 +138,9 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     }
     
     private async performSearch(): Promise<void> {
-        // This method performs the actual search
-        // The search logic is already in getChildren, so we just need to wait a moment
-        // to ensure the searching status is visible
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Ensure the searching status is visible for a minimum duration
+        // The actual search happens in the next getChildren() call
+        await new Promise(resolve => setTimeout(resolve, SEARCHING_STATUS_MIN_DURATION_MS));
     }
 }
 
