@@ -44,4 +44,46 @@ suite('NuGet Config Parsing & Serialization', () => {
         const model2 = parseNugetConfig(xml, false);
         assert.strictEqual(model2.sources.length, model.sources.length);
     });
+
+    test('preserve XML declaration, comments and structure', () => {
+        const xmlWithComments = `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <!--Begin: Package sources managed by Dependency Flow automation. Do not edit the sources below.-->
+    <!--  Begin: Package sources from dotnet-aspnetcore -->
+    <!--  End: Package sources from dotnet-aspnetcore -->
+    <add key="dotnet-public" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-public/nuget/v3/index.json" />
+    <add key="dotnet-eng" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-eng/nuget/v3/index.json" />
+  </packageSources>
+</configuration>`;
+        
+        const model = parseNugetConfig(xmlWithComments, true);
+        // Disable one source
+        const dotnetEng = model.sources.find(s => s.key === 'dotnet-eng');
+        if (dotnetEng) {
+            dotnetEng.enabled = false;
+        }
+        
+        const xml = serializeModel(model, true, '\n');
+        
+        // Verify XML declaration preserved
+        assert.ok(xml.includes('<?xml version="1.0" encoding="utf-8"?>'), 'XML declaration should be preserved');
+        
+        // Verify comments preserved in their original locations
+        assert.ok(xml.includes('<!--Begin: Package sources managed by Dependency Flow automation'), 'First comment should be preserved');
+        assert.ok(xml.includes('<!--  Begin: Package sources from dotnet-aspnetcore -->'), 'Second comment should be preserved with exact spacing');
+        assert.ok(xml.includes('<!--  End: Package sources from dotnet-aspnetcore -->'), 'Third comment should be preserved');
+        
+        // Verify <clear /> preserved on its own line
+        assert.ok(/\n\s*<clear\s*\/>/m.test(xml), '<clear /> should be preserved on its own line');
+        
+        // Verify comments stay on separate lines (not bunched together)
+        const commentLines = xml.split('\n').filter(line => line.includes('<!--'));
+        assert.ok(commentLines.length >= 3, 'Comments should remain on separate lines');
+        
+        // Verify disabledPackageSources added correctly
+        assert.ok(xml.includes('<disabledPackageSources>'), 'disabledPackageSources section should be added');
+        assert.ok(xml.includes('<add key="dotnet-eng" value="true"'), 'dotnet-eng should be disabled');
+    });
 });

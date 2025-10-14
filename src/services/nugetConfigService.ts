@@ -109,7 +109,12 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
 }
 
 export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol: string): string {
-    // Build XML object structure
+    // If preserveUnknown and original raw XML is available, use string-based replacement to preserve structure
+    if (preserveUnknown && model.rawUnknown) {
+        return preserveXmlStructure(model, model.rawUnknown, eol);
+    }
+
+    // Build XML object structure using fast-xml-parser for new files
     const configuration: any = {};
     if (model.sources.length) {
         configuration.packageSources = { add: model.sources.map(s => ({ '@_key': s.key, '@_value': s.url })) };
@@ -135,41 +140,211 @@ export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol
         suppressEmptyNode: true,
     });
 
-    // If preserveUnknown and original raw XML is available, merge changes into that original structure
-    if (preserveUnknown && model.rawUnknown) {
-        try {
-            const orig = parser.parse(model.rawUnknown) as any;
-            const origConfig = orig.configuration || orig['configuration'] || orig;
-            // Replace or delete known sections according to new configuration
-            if (configuration.packageSources) {
-                origConfig.packageSources = configuration.packageSources;
-            } else {
-                delete origConfig.packageSources;
-            }
-            if (configuration.disabledPackageSources) {
-                origConfig.disabledPackageSources = configuration.disabledPackageSources;
-            } else {
-                delete origConfig.disabledPackageSources;
-            }
-            if (configuration.packageSourceMapping) {
-                origConfig.packageSourceMapping = configuration.packageSourceMapping;
-            } else {
-                delete origConfig.packageSourceMapping;
-            }
-            // Ensure the top-level has configuration property if original did
-            const toBuild = { configuration: origConfig };
-            const built = builder.build(toBuild);
-            const normalized = built.replace(/\r?\n/g, eol);
-            return normalized;
-        } catch (e) {
-            // Fall back to building from scratch on error
-        }
-    }
-
     const built = builder.build({ configuration });
     // Basic newline normalization
     const normalized = built.replace(/\r?\n/g, eol);
     return normalized;
+}
+
+function preserveXmlStructure(model: ConfigModel, originalXml: string, eol: string): string {
+    let result = originalXml;
+    
+    // Update packageSources section
+    result = updatePackageSourcesInXml(result, model.sources, eol);
+    
+    // Update disabledPackageSources section
+    const disabled = model.sources.filter(s => !s.enabled);
+    result = updateDisabledSourcesInXml(result, disabled, eol);
+    
+    // Update packageSourceMapping section
+    result = updateMappingsInXml(result, model.mappings, eol);
+    
+    // Normalize line endings
+    result = result.replace(/\r?\n/g, eol);
+    
+    return result;
+}
+
+function updatePackageSourcesInXml(xml: string, sources: PackageSource[], eol: string): string {
+    // Find the packageSources section
+    const packageSourcesRegex = /<packageSources>([\s\S]*?)<\/packageSources>/;
+    const match = xml.match(packageSourcesRegex);
+    
+    if (!match) {
+        // No existing packageSources section - add one if there are sources
+        if (sources.length > 0) {
+            const newSection = buildPackageSourcesSection(sources, eol);
+            return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
+        }
+        return xml;
+    }
+    
+    const [fullMatch, innerContent] = match;
+    
+    // Remove <add> elements while preserving comments and other content
+    // Strategy: split by lines, filter out lines with <add> tags that are NOT inside comments
+    const nonAddContent = removeAddElementsPreservingComments(innerContent);
+    
+    // Build new add elements with proper indentation
+    const indent = detectIndentation(innerContent);
+    const addElements = sources.map(s => 
+        `${indent}<add key="${escapeXmlAttribute(s.key)}" value="${escapeXmlAttribute(s.url)}" />`
+    ).join(eol);
+    
+    // Reconstruct the section preserving non-add content
+    const newInnerContent = nonAddContent.trimEnd() + (nonAddContent.trim() ? eol : '') + addElements + eol + '  ';
+    const newSection = `<packageSources>${newInnerContent}</packageSources>`;
+    
+    return xml.replace(fullMatch, newSection);
+}
+
+function removeAddElementsPreservingComments(content: string): string {
+    // Parse the content to track comment boundaries and only remove <add> elements outside comments
+    let result = '';
+    let inComment = false;
+    let i = 0;
+    
+    while (i < content.length) {
+        // Check for comment start
+        if (!inComment && content.substring(i, i + 4) === '<!--') {
+            inComment = true;
+            result += '<!--';
+            i += 4;
+            continue;
+        }
+        
+        // Check for comment end
+        if (inComment && content.substring(i, i + 3) === '-->') {
+            inComment = false;
+            result += '-->';
+            i += 3;
+            continue;
+        }
+        
+        // If we're in a comment, just copy the character
+        if (inComment) {
+            result += content[i];
+            i++;
+            continue;
+        }
+        
+        // Outside comment: check for <add> tags
+        if (content.substring(i, i + 4) === '<add') {
+            // Find the end of this add element
+            const selfClosing = content.indexOf('/>', i);
+            const openClosing = content.indexOf('</add>', i);
+            
+            let endPos = -1;
+            if (selfClosing !== -1 && (openClosing === -1 || selfClosing < openClosing)) {
+                endPos = selfClosing + 2;
+            } else if (openClosing !== -1) {
+                endPos = openClosing + 6;
+            }
+            
+            if (endPos !== -1) {
+                // Skip the entire <add> element
+                i = endPos;
+                continue;
+            }
+        }
+        
+        // Copy character
+        result += content[i];
+        i++;
+    }
+    
+    return result;
+}
+
+function updateDisabledSourcesInXml(xml: string, disabled: PackageSource[], eol: string): string {
+    const disabledRegex = /<disabledPackageSources>([\s\S]*?)<\/disabledPackageSources>/;
+    const match = xml.match(disabledRegex);
+    
+    if (disabled.length === 0) {
+        // Remove the section if no disabled sources
+        if (match) {
+            return xml.replace(disabledRegex, '');
+        }
+        return xml;
+    }
+    
+    const newSection = buildDisabledSourcesSection(disabled, eol);
+    
+    if (match) {
+        // Replace existing section
+        return xml.replace(disabledRegex, newSection);
+    } else {
+        // Add new section after packageSources
+        const packageSourcesRegex = /<\/packageSources>/;
+        if (packageSourcesRegex.test(xml)) {
+            return xml.replace(packageSourcesRegex, `</packageSources>${eol}  ${newSection}`);
+        } else {
+            // Add before closing configuration tag
+            return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
+        }
+    }
+}
+
+function updateMappingsInXml(xml: string, mappings: PackageSourceMapping[], eol: string): string {
+    const mappingRegex = /<packageSourceMapping>([\s\S]*?)<\/packageSourceMapping>/;
+    const match = xml.match(mappingRegex);
+    
+    if (mappings.length === 0) {
+        // Remove the section if no mappings
+        if (match) {
+            return xml.replace(mappingRegex, '');
+        }
+        return xml;
+    }
+    
+    const newSection = buildMappingsSection(mappings, eol);
+    
+    if (match) {
+        // Replace existing section
+        return xml.replace(mappingRegex, newSection);
+    } else {
+        // Add before closing configuration tag
+        return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
+    }
+}
+
+function buildPackageSourcesSection(sources: PackageSource[], eol: string): string {
+    const addElements = sources.map(s => 
+        `    <add key="${escapeXmlAttribute(s.key)}" value="${escapeXmlAttribute(s.url)}" />`
+    ).join(eol);
+    return `<packageSources>${eol}${addElements}${eol}  </packageSources>`;
+}
+
+function buildDisabledSourcesSection(disabled: PackageSource[], eol: string): string {
+    const addElements = disabled.map(s => 
+        `    <add key="${escapeXmlAttribute(s.key)}" value="true" />`
+    ).join(eol);
+    return `<disabledPackageSources>${eol}${addElements}${eol}  </disabledPackageSources>`;
+}
+
+function buildMappingsSection(mappings: PackageSourceMapping[], eol: string): string {
+    const packageSources = mappings.map(m => {
+        const patterns = m.patterns.map(p => 
+            `      <package pattern="${escapeXmlAttribute(p)}" />`
+        ).join(eol);
+        return `    <packageSource key="${escapeXmlAttribute(m.sourceKey)}">${eol}${patterns}${eol}    </packageSource>`;
+    }).join(eol);
+    return `<packageSourceMapping>${eol}${packageSources}${eol}  </packageSourceMapping>`;
+}
+
+function escapeXmlAttribute(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function detectIndentation(xmlContent: string): string {
+    // Try to detect the indentation used in the XML
+    const match = xmlContent.match(/\n(\s+)</);
+    return match ? match[1] : '    '; // Default to 4 spaces
 }
 
 
