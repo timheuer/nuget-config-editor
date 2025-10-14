@@ -89,14 +89,20 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     }
                     break;
                 case 'edit': {
-                    if (!model) { return; }
+                    if (!model) { 
+                        this.log.error('Edit received but model is undefined');
+                        return; 
+                    }
                     const ops: EditOp[] = Array.isArray(msg.ops) ? msg.ops : [];
+                    this.log.debug(`Applying ${ops.length} edit operation(s)`, { ops: JSON.stringify(ops) });
                     model = applyEditOps(model, ops);
                     const issues = validate(model);
+                    this.log.debug(`Validation found ${issues.length} issue(s)`, { issues: JSON.stringify(issues) });
                     // Always send validation results back to the webview
                     webviewPanel.webview.postMessage({ type: 'validation', issues });
                     // If there are errors, don't write; just send the updated model for display
                     if (issues.some(i => i.level === 'error')) {
+                        this.log.warn('Edit blocked due to validation errors');
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                         break;
                     }
