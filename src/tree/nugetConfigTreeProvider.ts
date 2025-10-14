@@ -4,11 +4,12 @@ import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE
 import { findGlobalNugetConfig } from '../services/globalConfigLocator';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
-interface NodeData { uri: vscode.Uri; label: string; description?: string }
+interface NodeData { uri?: vscode.Uri; label: string; description?: string; isSearching?: boolean }
 
 export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData> {
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+    private isSearching = false;
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
         // Watch for nuget.config file changes and refresh the tree
@@ -45,10 +46,20 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         return excludePatterns.some(pattern => normalizedPath.includes(pattern));
     }
 
-    refresh(): void { this._onDidChangeTreeData.fire(); }
+    refresh(): void { 
+        this.isSearching = true;
+        this._onDidChangeTreeData.fire(); 
+    }
 
     getTreeItem(element: NodeData): vscode.TreeItem {
         const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+        
+        // Handle searching status node
+        if (element.isSearching) {
+            item.iconPath = new vscode.ThemeIcon('loading~spin');
+            return item;
+        }
+        
         item.resourceUri = element.uri;
         item.description = element.description;
         item.command = {
@@ -66,6 +77,23 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     }
 
     async getChildren(_element?: NodeData): Promise<NodeData[]> {
+        // Show searching status if a search is in progress
+        if (this.isSearching) {
+            this.isSearching = false;
+            // Return a temporary searching node
+            const searchingNode: NodeData = { 
+                label: 'Searching for nuget.config files in this workspace...', 
+                isSearching: true 
+            };
+            
+            // Trigger actual search asynchronously and refresh when done
+            this.performSearch().then(() => {
+                this._onDidChangeTreeData.fire();
+            });
+            
+            return [searchingNode];
+        }
+        
         const showGlobal = vscode.workspace.getConfiguration('nugetConfigEditor').get<boolean>('showGlobalConfig', false);
         const files = await vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 50);
         const seen = new Set<string>();
@@ -101,6 +129,13 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         }
 
         return nodes;
+    }
+    
+    private async performSearch(): Promise<void> {
+        // This method performs the actual search
+        // The search logic is already in getChildren, so we just need to wait a moment
+        // to ensure the searching status is visible
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
 }
 
