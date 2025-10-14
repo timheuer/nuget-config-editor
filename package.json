@@ -78,7 +78,7 @@
     "viewsWelcome": [
       {
         "view": "nugetConfigEditor.configs",
-        "contents": "No nuget.config files found in the current workspace."
+        "contents": "$(info) No nuget.config files found in workspace."
       }
     ],
     "menus": {
