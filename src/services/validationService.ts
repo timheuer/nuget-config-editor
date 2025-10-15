@@ -1,7 +1,27 @@
 import { ConfigModel, ValidationIssue } from '../model/types';
 import { VALIDATION_EMPTY_KEY, VALIDATION_DUPLICATE_KEY, VALIDATION_INVALID_URL, VALIDATION_DUPLICATE_PATTERN } from '../constants';
 
+// NuGet package sources can be:
+// 1. HTTP/HTTPS URLs: https://api.nuget.org/v3/index.json
+// 2. Local file paths: C:\packages or /home/user/packages
+// 3. UNC paths: \\server\share\packages
 const URL_REGEX = /^(https?):\/\/[\w\-_.~%/:?#@!$&'()*+,;=]+$/i;
+const FILE_PATH_REGEX = /^([a-zA-Z]:[\\\/]|[\\\/]|\\\\)/; // Windows absolute, Unix absolute, or UNC path
+
+function isValidPackageSource(url: string): boolean {
+    if (!url || !url.trim()) {
+        return false;
+    }
+    // Check if it's a valid HTTP/HTTPS URL
+    if (URL_REGEX.test(url)) {
+        return true;
+    }
+    // Check if it's a valid file path (absolute path or UNC path)
+    if (FILE_PATH_REGEX.test(url)) {
+        return true;
+    }
+    return false;
+}
 
 export function validate(model: ConfigModel): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
@@ -14,7 +34,7 @@ export function validate(model: ConfigModel): ValidationIssue[] {
         } else {
             seen.add(s.key);
         }
-        if (!s.url || !URL_REGEX.test(s.url)) {
+        if (!isValidPackageSource(s.url)) {
             issues.push(err('BAD_URL', VALIDATION_INVALID_URL(s.key), `sources.${s.key}.url`));
         }
     }

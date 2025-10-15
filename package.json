@@ -61,7 +61,8 @@
         "viewType": "nugetConfigEditor.visualEditor",
         "displayName": "NuGet Config Editor",
         "selector": [
-          { "filenamePattern": "**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]" }
+          { "filenamePattern": "**/[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]" },
+          { "filenamePattern": "[Nn][Uu][Gg][Ee][Tt].[Cc][Oo][Nn][Ff][Ii][Gg]" }
         ],
         "priority": "option"
       }
