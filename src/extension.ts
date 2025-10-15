@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	// Listen for document saves to refresh tree view when nuget.config files are saved
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
-		if (/[\\/]nuget\.config$/i.test(doc.uri.fsPath)) {
+		if (/nuget\.config$/i.test(doc.uri.fsPath)) {
 			treeProvider.refresh();
 		}
 	}));
