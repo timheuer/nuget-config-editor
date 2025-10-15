@@ -44,4 +44,16 @@ suite('NuGet Config Parsing & Serialization', () => {
         const model2 = parseNugetConfig(xml, false);
         assert.strictEqual(model2.sources.length, model.sources.length);
     });
+
+    test('validation accepts file paths as valid sources', () => {
+        const model = parseNugetConfig(sample, false);
+        // Add sources with file paths
+        model.sources.push({ key: 'LocalFolder', url: 'C:\\packages', enabled: true });
+        model.sources.push({ key: 'UnixPath', url: '/home/user/packages', enabled: true });
+        model.sources.push({ key: 'UNCPath', url: '\\\\server\\share\\packages', enabled: true });
+        const issues = validate(model);
+        // Should not have BAD_URL errors for file paths
+        const badUrlIssues = issues.filter(i => i.code === 'BAD_URL');
+        assert.strictEqual(badUrlIssues.length, 0, 'File paths should be valid package sources');
+    });
 });
