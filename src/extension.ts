@@ -17,12 +17,12 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.workspace.findFiles(NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, 10)
 		.then(files => {
 			if (files.length > 0) {
-				log.debug(`Detected ${files.length} nuget.config file(s).`);
+				log.debug(`🔍 Detected ${files.length} nuget.config file(s).`);
 			} else {
-				log.debug('No nuget.config found during initial scan.');
+				log.debug('🔍 No nuget.config found during initial scan.');
 		}
 		}, (err: unknown) => {
-			log.warn('Error scanning for nuget.config', { err: String(err) });
+			log.warn('⚠️ Error scanning for nuget.config', { err: String(err) });
 		});
 
 	// Register custom editor provider & tree
@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const doc = await vscode.workspace.openTextDocument(target);
 				await vscode.commands.executeCommand('vscode.openWith', target, 'nugetConfigEditor.visualEditor');
 			} catch (err) {
-				log.error('Failed to open nuget.config', { error: String(err) });
+				log.error('❌ Failed to open nuget.config', { error: String(err) });
 				vscode.window.showErrorMessage(`Failed to open nuget.config: ${err}`);
 			}
 		}
@@ -134,7 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}));
 	}
-	log.info('NuGet Config Editor activated');
+	log.info('🚀 NuGet Config Editor activated');
 }
 
 // This method is called when your extension is deactivated
