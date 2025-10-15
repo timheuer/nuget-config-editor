@@ -144,7 +144,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     }
 }
 
-export function registerNugetConfigTree(context: vscode.ExtensionContext, log: Logger) {
+export function registerNugetConfigTree(context: vscode.ExtensionContext, log: Logger): NugetConfigTreeProvider {
     const provider = new NugetConfigTreeProvider(context, log);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('nugetConfigEditor.configs', provider),
@@ -152,4 +152,5 @@ export function registerNugetConfigTree(context: vscode.ExtensionContext, log: L
     );
     // Trigger initial refresh to ensure tree updates after workspace is fully loaded
     setTimeout(() => provider.refresh(), 10);
+    return provider;
 }

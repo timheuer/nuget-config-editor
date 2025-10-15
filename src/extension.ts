@@ -25,9 +25,18 @@ export function activate(context: vscode.ExtensionContext) {
 			log.warn('Error scanning for nuget.config', { err: String(err) });
 		});
 
-	// Register custom editor provider & tree
-	registerNugetConfigCustomEditor(context, log);
-	registerNugetConfigTree(context, log);
+	// Register tree provider first so we can pass it to the custom editor
+	const treeProvider = registerNugetConfigTree(context, log);
+	
+	// Register custom editor provider with callback to refresh tree on save
+	registerNugetConfigCustomEditor(context, log, () => treeProvider.refresh());
+	
+	// Listen for document saves to refresh tree view when nuget.config files are saved
+	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+		if (/nuget\.config$/i.test(doc.uri.fsPath)) {
+			treeProvider.refresh();
+		}
+	}));
 
 	// Command: open visual editor for current or chosen nuget.config
 	context.subscriptions.push(vscode.commands.registerCommand('nuget-config-editor.openVisualEditor', async (uri?: vscode.Uri) => {
