@@ -68,7 +68,11 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             try {
                 const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
                 const model = parseNugetConfig(text, false, uri.fsPath, this.log);
-                this.cachedNodes[nodeIndex].description = `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+                const enabled = model.sources.filter(s => s.enabled).length;
+                const disabled = model.sources.length - enabled;
+                this.cachedNodes[nodeIndex].description = disabled > 0 
+                    ? `✓ ${enabled} ⊘ ${disabled}`
+                    : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
             } catch {
                 this.cachedNodes[nodeIndex].description = TREE_PARSE_ERROR;
             }
@@ -140,7 +144,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             try {
                 const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(f));
                 const model = parseNugetConfig(text, false, f.fsPath, this.log);
-                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
+                const enabled = model.sources.filter(s => s.enabled).length;
+                const disabled = model.sources.length - enabled;
+                const description = disabled > 0 
+                    ? `✓ ${enabled} ⊘ ${disabled}`
+                    : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description });
             } catch {
                 nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: TREE_PARSE_ERROR });
             }
@@ -154,7 +163,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
                     const uri = vscode.Uri.file(globalPath);
                     const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
                     const model = parseNugetConfig(text, false, uri.fsPath, this.log);
-                    nodes.push({ uri, label: TREE_GLOBAL_CONFIG_LABEL, description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
+                    const enabled = model.sources.filter(s => s.enabled).length;
+                    const disabled = model.sources.length - enabled;
+                    const description = disabled > 0 
+                        ? `✓ ${enabled} ⊘ ${disabled}`
+                        : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+                    nodes.push({ uri, label: TREE_GLOBAL_CONFIG_LABEL, description });
                 } catch {
                     nodes.push({ uri: vscode.Uri.file(globalPath), label: TREE_GLOBAL_CONFIG_LABEL, description: TREE_PARSE_ERROR });
                 }
