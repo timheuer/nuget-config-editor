@@ -11,7 +11,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     public static readonly viewType = CUSTOM_EDITOR_VIEW_TYPE;
     private static panels = new Map<vscode.WebviewPanel, vscode.Uri>();
 
-    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {}
+    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger, private readonly onFileSaved?: (uri: vscode.Uri) => void) {}
 
     /**
      * Check if a URI is within the workspace.
@@ -243,11 +243,11 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     }
 }
 
-export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext, logger: Logger) {
+export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext, logger: Logger, onFileSaved?: (uri: vscode.Uri) => void) {
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             NugetConfigCustomEditorProvider.viewType,
-            new NugetConfigCustomEditorProvider(context, logger),
+            new NugetConfigCustomEditorProvider(context, logger, onFileSaved),
             { supportsMultipleEditorsPerDocument: false }
         )
     );

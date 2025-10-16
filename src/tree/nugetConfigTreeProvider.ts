@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { parseNugetConfig } from '../services/nugetConfigService';
-import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE_GLOBAL_CONFIG_LABEL, TREE_SOURCES_SUFFIX, TREE_PARSE_ERROR, TREE_OPEN_EDITOR_COMMAND } from '../constants';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE_GLOBAL_CONFIG_LABEL, TREE_SOURCES_SUFFIX, TREE_PARSE_ERROR, TREE_OPEN_EDITOR_COMMAND, MSG_REFRESHING_NUGET_CONFIGS } from '../constants';
 import { findGlobalNugetConfig } from '../services/globalConfigLocator';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
@@ -13,6 +13,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private isSearching = false;
+    private cachedNodes: NodeData[] = [];
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
         // Watch for nuget.config file changes and refresh the tree
@@ -30,7 +31,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         });
         watcher.onDidChange((uri) => {
             if (!this.isExcludedPath(uri.fsPath)) {
-                this.refresh();
+                this.refreshFile(uri);
             }
         });
         context.subscriptions.push(watcher);
@@ -52,6 +53,36 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     refresh(): void { 
         this.isSearching = true;
         this._onDidChangeTreeData.fire(); 
+    }
+
+    /**
+     * Refresh a specific file's tree item without doing a full tree refresh.
+     * This is more efficient than refresh() when only one file has changed.
+     */
+    async refreshFile(uri: vscode.Uri): Promise<void> {
+        // Find the cached node for this URI
+        const nodeIndex = this.cachedNodes.findIndex(n => n.uri?.toString() === uri.toString());
+        
+        if (nodeIndex >= 0) {
+            // Update just this node's description
+            try {
+                const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
+                const model = parseNugetConfig(text, false, uri.fsPath, this.log);
+                const enabled = model.sources.filter(s => s.enabled).length;
+                const disabled = model.sources.length - enabled;
+                this.cachedNodes[nodeIndex].description = disabled > 0 
+                    ? `✓ ${enabled} ⊘ ${disabled}`
+                    : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+            } catch {
+                this.cachedNodes[nodeIndex].description = TREE_PARSE_ERROR;
+            }
+            
+            // Fire change event to refresh the tree view
+            this._onDidChangeTreeData.fire(this.cachedNodes[nodeIndex]);
+        } else {
+            // File not in cache, do a full refresh
+            this.refresh();
+        }
     }
 
     getTreeItem(element: NodeData): vscode.TreeItem {
@@ -88,7 +119,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             this.isSearching = false;
             // Return a temporary searching node
             const searchingNode: NodeData = { 
-                label: 'Searching for nuget.config files in this workspace...', 
+                label: MSG_REFRESHING_NUGET_CONFIGS, 
                 isSearching: true 
             };
             
@@ -113,7 +144,12 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             try {
                 const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(f));
                 const model = parseNugetConfig(text, false, f.fsPath, this.log);
-                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
+                const enabled = model.sources.filter(s => s.enabled).length;
+                const disabled = model.sources.length - enabled;
+                const description = disabled > 0 
+                    ? `✓ ${enabled} ⊘ ${disabled}`
+                    : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+                nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description });
             } catch {
                 nodes.push({ uri: f, label: vscode.workspace.asRelativePath(f), description: TREE_PARSE_ERROR });
             }
@@ -127,13 +163,20 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
                     const uri = vscode.Uri.file(globalPath);
                     const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
                     const model = parseNugetConfig(text, false, uri.fsPath, this.log);
-                    nodes.push({ uri, label: TREE_GLOBAL_CONFIG_LABEL, description: `${model.sources.length} ${TREE_SOURCES_SUFFIX}` });
+                    const enabled = model.sources.filter(s => s.enabled).length;
+                    const disabled = model.sources.length - enabled;
+                    const description = disabled > 0 
+                        ? `✓ ${enabled} ⊘ ${disabled}`
+                        : `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+                    nodes.push({ uri, label: TREE_GLOBAL_CONFIG_LABEL, description });
                 } catch {
                     nodes.push({ uri: vscode.Uri.file(globalPath), label: TREE_GLOBAL_CONFIG_LABEL, description: TREE_PARSE_ERROR });
                 }
             }
         }
 
+        // Cache the nodes for efficient single-file updates
+        this.cachedNodes = nodes;
         return nodes;
     }
     
@@ -144,7 +187,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     }
 }
 
-export function registerNugetConfigTree(context: vscode.ExtensionContext, log: Logger) {
+export function registerNugetConfigTree(context: vscode.ExtensionContext, log: Logger): NugetConfigTreeProvider {
     const provider = new NugetConfigTreeProvider(context, log);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('nugetConfigEditor.configs', provider),
@@ -152,4 +195,5 @@ export function registerNugetConfigTree(context: vscode.ExtensionContext, log: L
     );
     // Trigger initial refresh to ensure tree updates after workspace is fully loaded
     setTimeout(() => provider.refresh(), 10);
+    return provider;
 }
