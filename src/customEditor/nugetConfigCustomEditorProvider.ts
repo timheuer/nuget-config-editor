@@ -83,8 +83,6 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         await writeModelToUri(document.uri, model, preserveUnknown);
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: true });
                         this.log.info('✅ nuget.config saved successfully');
-                        // Notify tree provider to refresh after successful save
-                        this.onFileSaved?.(document.uri);
                     } catch (err) {
                         this.log.error('❌ Save failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
