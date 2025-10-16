@@ -25,6 +25,7 @@ export const MSG_SELECT_NUGET_CONFIG_FOR_SOURCE = 'Select a nuget.config file to
 export const MSG_ENTER_PACKAGE_SOURCE_KEY = 'Enter package source key';
 export const MSG_ENTER_PACKAGE_SOURCE_URL = 'Enter package source URL';
 export const MSG_CANNOT_SAVE_VALIDATION_ERRORS = 'Cannot save nuget.config due to validation errors.';
+export const MSG_REFRESHING_NUGET_CONFIGS = 'Refreshing nuget.config files in this workspace...';
 
 // ========== Custom Editor Messages ==========
 export const MSG_OPENING_EDITOR = 'Opening NuGet Config Editor';

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { parseNugetConfig } from '../services/nugetConfigService';
-import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE_GLOBAL_CONFIG_LABEL, TREE_SOURCES_SUFFIX, TREE_PARSE_ERROR, TREE_OPEN_EDITOR_COMMAND } from '../constants';
+import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, SETTING_SHOW_GLOBAL, TREE_GLOBAL_CONFIG_LABEL, TREE_SOURCES_SUFFIX, TREE_PARSE_ERROR, TREE_OPEN_EDITOR_COMMAND, MSG_REFRESHING_NUGET_CONFIGS } from '../constants';
 import { findGlobalNugetConfig } from '../services/globalConfigLocator';
 import { Logger } from '@timheuer/vscode-ext-logger';
 
@@ -88,7 +88,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             this.isSearching = false;
             // Return a temporary searching node
             const searchingNode: NodeData = { 
-                label: 'Searching for nuget.config files in this workspace...', 
+                label: MSG_REFRESHING_NUGET_CONFIGS, 
                 isSearching: true 
             };
             
