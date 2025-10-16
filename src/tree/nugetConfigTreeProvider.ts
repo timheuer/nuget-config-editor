@@ -13,6 +13,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     private _onDidChangeTreeData = new vscode.EventEmitter<NodeData | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private isSearching = false;
+    private cachedNodes: NodeData[] = [];
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
         // Watch for nuget.config file changes and refresh the tree
@@ -52,6 +53,32 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     refresh(): void { 
         this.isSearching = true;
         this._onDidChangeTreeData.fire(); 
+    }
+
+    /**
+     * Refresh a specific file's tree item without doing a full tree refresh.
+     * This is more efficient than refresh() when only one file has changed.
+     */
+    async refreshFile(uri: vscode.Uri): Promise<void> {
+        // Find the cached node for this URI
+        const nodeIndex = this.cachedNodes.findIndex(n => n.uri?.toString() === uri.toString());
+        
+        if (nodeIndex >= 0) {
+            // Update just this node's description
+            try {
+                const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
+                const model = parseNugetConfig(text, false, uri.fsPath, this.log);
+                this.cachedNodes[nodeIndex].description = `${model.sources.length} ${TREE_SOURCES_SUFFIX}`;
+            } catch {
+                this.cachedNodes[nodeIndex].description = TREE_PARSE_ERROR;
+            }
+            
+            // Fire change event to refresh the tree view
+            this._onDidChangeTreeData.fire(undefined);
+        } else {
+            // File not in cache, do a full refresh
+            this.refresh();
+        }
     }
 
     getTreeItem(element: NodeData): vscode.TreeItem {
@@ -134,6 +161,8 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             }
         }
 
+        // Cache the nodes for efficient single-file updates
+        this.cachedNodes = nodes;
         return nodes;
     }
     

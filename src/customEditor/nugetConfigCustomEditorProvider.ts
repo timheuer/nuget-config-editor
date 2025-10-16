@@ -11,7 +11,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     public static readonly viewType = CUSTOM_EDITOR_VIEW_TYPE;
     private static panels = new Map<vscode.WebviewPanel, vscode.Uri>();
 
-    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger, private readonly onFileSaved?: () => void) {}
+    constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger, private readonly onFileSaved?: (uri: vscode.Uri) => void) {}
 
     /**
      * Check if a URI is within the workspace.
@@ -84,7 +84,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: true });
                         this.log.info('nuget.config saved successfully');
                         // Notify tree provider to refresh after successful save
-                        this.onFileSaved?.();
+                        this.onFileSaved?.(document.uri);
                     } catch (err) {
                         this.log.error('Save failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
@@ -245,7 +245,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
     }
 }
 
-export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext, logger: Logger, onFileSaved?: () => void) {
+export function registerNugetConfigCustomEditor(context: vscode.ExtensionContext, logger: Logger, onFileSaved?: (uri: vscode.Uri) => void) {
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             NugetConfigCustomEditorProvider.viewType,

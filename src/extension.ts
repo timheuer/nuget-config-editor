@@ -29,12 +29,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const treeProvider = registerNugetConfigTree(context, log);
 	
 	// Register custom editor provider with callback to refresh tree on save
-	registerNugetConfigCustomEditor(context, log, () => treeProvider.refresh());
+	registerNugetConfigCustomEditor(context, log, (uri: vscode.Uri) => treeProvider.refreshFile(uri));
 	
 	// Listen for document saves to refresh tree view when nuget.config files are saved
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
 		if (/nuget\.config$/i.test(doc.uri.fsPath)) {
-			treeProvider.refresh();
+			treeProvider.refreshFile(doc.uri);
 		}
 	}));
 
