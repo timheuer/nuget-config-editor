@@ -31,7 +31,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         });
         watcher.onDidChange((uri) => {
             if (!this.isExcludedPath(uri.fsPath)) {
-                this.refresh();
+                this.refreshFile(uri);
             }
         });
         context.subscriptions.push(watcher);
@@ -74,7 +74,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
             }
             
             // Fire change event to refresh the tree view
-            this._onDidChangeTreeData.fire(undefined);
+            this._onDidChangeTreeData.fire(this.cachedNodes[nodeIndex]);
         } else {
             // File not in cache, do a full refresh
             this.refresh();
