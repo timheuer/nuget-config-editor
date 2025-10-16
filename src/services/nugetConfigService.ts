@@ -95,15 +95,15 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
         const model: ConfigModel = { sources, mappings, rawUnknown: preserveUnknown ? unknown : undefined };
         // Log debug info about the parsed content. If a sourcePath was provided, include it.
         try {
-            log?.debug('Parsed nuget.config', { path: sourcePath, sources: model.sources.length, mappings: model.mappings.length });
+            log?.debug('✅ Parsed nuget.config', { path: sourcePath, sources: model.sources.length, mappings: model.mappings.length });
         } catch {
             // ignore logging failures
-            log?.error('Logging parsed nuget.config failed', { path: sourcePath });
+            log?.error('❌ Logging parsed nuget.config failed', { path: sourcePath });
         }
 
         return model;
     } catch (err) {
-        log?.error('Failed to parse nuget.config', { error: String(err) });
+        log?.error('❌ Failed to parse nuget.config', { error: String(err) });
         throw err;
     }
 }
