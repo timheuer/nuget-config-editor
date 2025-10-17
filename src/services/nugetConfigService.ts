@@ -268,13 +268,20 @@ function updateDisabledSourcesInXml(xml: string, disabled: PackageSource[], eol:
         return xml;
     }
     
-    const newSection = buildDisabledSourcesSection(disabled, eol);
-    
     if (match) {
-        // Replace existing section
-        return xml.replace(disabledRegex, newSection);
+        // Preserve comments when updating existing section
+        const [fullMatch, innerContent] = match;
+        const nonAddContent = removeAddElementsPreservingComments(innerContent);
+        const indent = detectIndentation(innerContent) || '    ';
+        const addElements = disabled.map(s => 
+            `${indent}<add key="${escapeXmlAttribute(s.key)}" value="true" />`
+        ).join(eol);
+        const newInnerContent = nonAddContent.trimEnd() + (nonAddContent.trim() ? eol : '') + addElements + eol + '  ';
+        const newSection = `<disabledPackageSources>${newInnerContent}</disabledPackageSources>`;
+        return xml.replace(fullMatch, newSection);
     } else {
         // Add new section after packageSources
+        const newSection = buildDisabledSourcesSection(disabled, eol);
         const packageSourcesRegex = /<\/packageSources>/;
         if (packageSourcesRegex.test(xml)) {
             return xml.replace(packageSourcesRegex, `</packageSources>${eol}  ${newSection}`);
