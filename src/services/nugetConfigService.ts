@@ -297,15 +297,68 @@ function updateMappingsInXml(xml: string, mappings: PackageSourceMapping[], eol:
         return xml;
     }
     
-    const newSection = buildMappingsSection(mappings, eol);
-    
+    // If there's an existing section, preserve its structure including comments inside packageSource elements
     if (match) {
-        // Replace existing section
-        return xml.replace(mappingRegex, newSection);
+        const [fullMatch, innerContent] = match;
+        const newSection = updateMappingsPreservingComments(innerContent, mappings, eol);
+        return xml.replace(fullMatch, `<packageSourceMapping>${newSection}</packageSourceMapping>`);
     } else {
-        // Add before closing configuration tag
+        // Add new section before closing configuration tag
+        const newSection = buildMappingsSection(mappings, eol);
         return xml.replace('</configuration>', `  ${newSection}${eol}</configuration>`);
     }
+}
+
+function updateMappingsPreservingComments(originalContent: string, mappings: PackageSourceMapping[], eol: string): string {
+    // Parse the original content to extract packageSource elements with their comments
+    const originalPackageSources = new Map<string, string>();
+    
+    // Match packageSource elements including their content and any comments inside
+    const packageSourceRegex = /<packageSource\s+key="([^"]+)">([\s\S]*?)<\/packageSource>/g;
+    let match;
+    while ((match = packageSourceRegex.exec(originalContent)) !== null) {
+        const key = match[1];
+        const content = match[2];
+        originalPackageSources.set(key, content);
+    }
+    
+    // Build new packageSource elements, preserving comments from original if the key exists
+    const packageSources = mappings.map(m => {
+        const originalContent = originalPackageSources.get(m.sourceKey);
+        
+        if (originalContent) {
+            // Extract comments from original content
+            const comments: string[] = [];
+            const commentRegex = /<!--[\s\S]*?-->/g;
+            const commentMatches = originalContent.match(commentRegex);
+            if (commentMatches) {
+                comments.push(...commentMatches);
+            }
+            
+            // Build new package patterns
+            const patterns = m.patterns.map(p => 
+                `      <package pattern="${escapeXmlAttribute(p)}" />`
+            ).join(eol);
+            
+            // Combine patterns with preserved comments
+            let content = eol + patterns;
+            if (comments.length > 0) {
+                // Add comments before the patterns
+                content = eol + comments.map(c => `      ${c}`).join(eol) + eol + patterns;
+            }
+            content += eol + '    ';
+            
+            return `    <packageSource key="${escapeXmlAttribute(m.sourceKey)}">${content}</packageSource>`;
+        } else {
+            // New packageSource without comments
+            const patterns = m.patterns.map(p => 
+                `      <package pattern="${escapeXmlAttribute(p)}" />`
+            ).join(eol);
+            return `    <packageSource key="${escapeXmlAttribute(m.sourceKey)}">${eol}${patterns}${eol}    </packageSource>`;
+        }
+    }).join(eol);
+    
+    return eol + packageSources + eol + '  ';
 }
 
 function buildPackageSourcesSection(sources: PackageSource[], eol: string): string {
