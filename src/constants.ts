@@ -31,6 +31,7 @@ export const MSG_REFRESHING_NUGET_CONFIGS = 'Refreshing nuget.config files in th
 export const MSG_OPENING_EDITOR = 'Opening NuGet Config Editor';
 export const MSG_DELETE_SOURCE_CONFIRM = (key: string) => `Delete source '${key}'? This cannot be undone.`;
 export const MSG_DELETE_BUTTON = 'Delete';
+export const MSG_DELETE_PATTERN_CONFIRM = (sourceKey: string, pattern: string) => `Delete mapping pattern '${pattern}' from source '${sourceKey}'? This cannot be undone.`;
 export const MSG_APPLIED_EDIT = 'Applied edit to document (unsaved)';
 export const MSG_APPLIED_DELETE = 'Applied delete to document (unsaved)';
 

@@ -18,4 +18,5 @@ export type WebviewToHost =
     | { type: 'ready' }
     | { type: 'edit'; ops: EditOp[] }
     | { type: 'requestSave' }
-    | { type: 'requestReparse' };
+    | { type: 'requestReparse' }
+    | { type: 'requestDeletePattern'; key: string; pattern: string };

@@ -54,10 +54,14 @@ function ensureStyles() {
     .mapping-src { margin: .5em 0; padding: .5em; background: var(--vscode-editorWidget-background); border-radius: 6px; display:block; }
     .mapping-header { display:flex; justify-content:space-between; align-items:center; gap:.5rem; margin-bottom:.45rem; }
     .mapping-header .src-key { font-weight:700; }
-    .patterns { margin: 0; padding: 0; list-style: none; display:block; }
+    .patterns { margin: 0; padding: 0; list-style: none; display:flex; }
     .patterns li { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:2px 0; }
     .pattern-label { display:inline-flex; align-items:center; gap:.25rem; }
     .badge { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:2px 6px; border-radius:2px; font-size:0.85em; vertical-align:baseline; }
+    /* Pattern badge that is an interactive button (large clickable area) */
+    .pattern-badge-btn { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:6px 10px; border-radius:2px; font-size:0.85em; display:inline-flex; align-items:center; gap:.35rem; border:none; cursor:pointer; min-height:22px; }
+    .pattern-badge-btn:focus { outline: none; box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
+    .pattern-badge-btn .codicon { font-size: 0.95em; }
     .add-pattern { display:flex; gap:.5rem; align-items:center; margin-top:.35rem; }
     .sources-table { width:100%; border-collapse:collapse; font-size:0.95rem; }
     .sources-table th, .sources-table td { text-align:left; padding:8px 6px; vertical-align:middle; border-top:1px solid var(--vscode-editorWidget-border); }
@@ -190,7 +194,8 @@ function render(model: any) {
         }
 
         // Mapping actions (remove/add) when clicked inside mappings row
-        if (act === 'removePattern' || act === 'addPattern') {
+        // Also handle requestDeletePattern which asks the host to confirm and perform deletion
+        if (act === 'removePattern' || act === 'addPattern' || act === 'requestDeletePattern') {
             // Determine source key from button attribute or mappings-row dataset
             const mapKey = btn.getAttribute('data-key') || tr?.dataset.for;
             if (!mapKey) { return; }
@@ -201,6 +206,11 @@ function render(model: any) {
                 if (!mapping) { return; }
                 const newPatterns = mapping.patterns.filter((p: string) => p !== pattern);
                 vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'setMappings', key: mapKey, patterns: newPatterns }] });
+            } else if (act === 'requestDeletePattern') {
+                const pattern = btn.getAttribute('data-pattern');
+                if (!pattern) { return; }
+                // Ask the host to show native confirmation and perform deletion
+                vscodeApi.postMessage({ type: 'requestDeletePattern', key: mapKey, pattern });
             } else if (act === 'addPattern') {
                 const input = tr.querySelector('input');
                 if (!input) { return; }
@@ -258,13 +268,36 @@ function render(model: any) {
         let inner = `<div style="margin:0.2rem 0 .4rem 0; font-weight:600;">${UI.PACKAGE_SOURCE_MAPPINGS} — ${escapeHtml(key)} (${patterns.length})</div>`;
         inner += `<ul class='patterns' style='margin:0 0 .4rem 0; padding:0; list-style:none;'>`;
         for (const p of patterns) {
-            inner += `<li style='display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:2px 0;'><div class='pattern-label'><span class='badge'>${escapeHtml(p)}</span></div><div><button data-act='removePattern' data-key='${escapeHtml(key)}' data-pattern='${escapeHtml(p)}' aria-label='${UI.REMOVE_PATTERN}' title='${UI.REMOVE_PATTERN}' class='codicon codicon-close vscode-btn icon-only'></button></div></li>`;
+            // Render the pattern as a single interactive button styled like a badge.
+            // This ensures clicking anywhere on the badge triggers the delete request.
+            inner += `<li style='display:flex; justify-content:flex-start; align-items:center; gap:.5rem; padding:2px 5px;'><div class='pattern-label'><button type='button' data-act='requestDeletePattern' data-key='${escapeHtml(key)}' data-pattern='${escapeHtml(p)}' aria-label='${UI.REMOVE_PATTERN}' title='${UI.REMOVE_PATTERN}' class='pattern-badge-btn'>${escapeHtml(p)}<i class='codicon codicon-close'></i></button></div></li>`;
         }
         inner += `</ul>`;
         inner += `<div class='add-pattern' style='display:flex; gap:.5rem; align-items:center;'><input type='text' placeholder='${UI.ADD_PATTERN}' class='small-input' aria-label='${UI.ADD_PATTERN}' /> <button data-act='addPattern' data-key='${escapeHtml(key)}' aria-label='${UI.ADD_PATTERN}' title='${UI.ADD_PATTERN}' class='codicon codicon-add vscode-btn icon-only'></button></div>`;
         td.innerHTML = inner;
         mtr.appendChild(td);
         tr.parentElement!.insertBefore(mtr, tr.nextSibling);
+        // Support adding pattern by pressing Enter in the input field (same behavior as the add button)
+        try {
+            const patternInput = mtr.querySelector("input[type='text']") as HTMLInputElement | null;
+            if (patternInput) {
+                patternInput.addEventListener('keydown', (e: KeyboardEvent) => {
+                    if (e.key === 'Enter') {
+                        const val = patternInput.value.trim();
+                        if (!val) { return; }
+                        const mapping = (model.mappings || []).find((m: any) => m.sourceKey === key);
+                        const patterns = mapping ? mapping.patterns.slice() : [];
+                        if (patterns.includes(val)) { return; }
+                        patterns.push(val);
+                        vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'setMappings', key, patterns }] });
+                        patternInput.value = '';
+                        e.preventDefault();
+                    }
+                });
+            }
+        } catch (err) {
+            // Defensive: avoid breaking webview if DOM APIs behave unexpectedly
+        }
         const btn = tr.querySelector("button[data-act='expand']");
         if (btn) {
             btn.classList.remove('codicon-chevron-right');
