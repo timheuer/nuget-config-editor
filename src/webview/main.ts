@@ -26,6 +26,8 @@ const UI = {
     DELETE: 'Delete',
     ADD_SOURCE: 'Add source',
     PACKAGE_SOURCE_MAPPINGS: 'Package Source Mappings',
+    EXPAND_MAPPINGS: 'Expand mappings',
+    COLLAPSE_MAPPINGS: 'Collapse mappings',
     PATTERN: 'pattern',
     PATTERNS: 'patterns',
     REMOVE_PATTERN: 'Remove pattern',
@@ -62,7 +64,7 @@ function ensureStyles() {
     .sources-table thead th { font-weight:600; color:var(--vscode-foreground); }
     .sources-table th:last-child, .sources-table td:last-child { width:160px; }
     /* Disabled source row styling */
-    .sources-table tbody tr.disabled-source td:first-child { text-decoration: line-through; opacity: 0.7; }
+    .sources-table tbody tr.disabled-source .keyCell { text-decoration: line-through; opacity: 0.7; }
     .sources-table tbody tr.disabled-source .urlCell { color: var(--vscode-descriptionForeground); font-style: italic; }
     /* Status indicators with icons */
     .status-indicator { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.9em; }
@@ -77,10 +79,14 @@ function ensureStyles() {
     .vscode-btn { background: transparent; border: none; padding:0; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; color:var(--vscode-icon-foreground); cursor:pointer; transition: background .08s ease, transform .02s ease; }
     .vscode-btn:hover { background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); }
     .vscode-btn:active { background: var(--vscode-button-activeBackground); color: var(--vscode-button-foreground); transform: translateY(1px); }
-    .vscode-btn:focus { outline: none; box-shadow: 0 0 0 1px var(--vscode-focusBorder); color: var(--vscode-button-foreground); }
+    /* Make focused buttons visible (match hover background + focus ring) */
+    .vscode-btn:focus { outline: none; background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
     .vscode-btn.icon-only { padding:0; }
+    /* Expanded state for the expand/collapse button: solid background and foreground to remain visible */
+    .vscode-btn.expanded { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
     /* Slightly larger-looking save button (text or icon+text) */
     .vscode-btn.save { width:auto; height:auto; padding:6px 10px; display:inline-flex; gap:6px; align-items:center; }
+    .vscode-btn.save:focus { background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); }
     .nuget-error { color: var(--vscode-editorError-foreground); }
     `;
     const s = document.createElement('style');
@@ -129,8 +135,8 @@ function render(model: any) {
             const statusText = s.enabled ? UI.YES : UI.NO;
 
             tr.innerHTML = `
-                <td><button data-act='expand' aria-label='Expand mappings' title='Expand mappings' class='codicon codicon-chevron-right vscode-btn icon-only'></button></td>
-                <td>${escapeHtml(s.key)}</td>
+                <td><button data-act='expand' aria-label='${UI.EXPAND_MAPPINGS}' title='${UI.EXPAND_MAPPINGS}' aria-expanded='false' class='codicon codicon-chevron-right vscode-btn icon-only'></button></td>
+                <td class="keyCell">${escapeHtml(s.key)}</td>
                 <td class="urlCell">${escapeHtml(s.url)}</td>
                 <td><span class="status-indicator ${statusClass}"><i class="codicon ${statusIcon}"></i>${statusText}</span></td>
                 <td class="actions-cell">
@@ -228,7 +234,14 @@ function render(model: any) {
             // collapse
             next.remove();
             const btn = tr.querySelector("button[data-act='expand']");
-            if (btn) { btn.classList.remove('codicon-chevron-down'); btn.classList.add('codicon-chevron-right'); }
+            if (btn) {
+                btn.classList.remove('codicon-chevron-down');
+                btn.classList.add('codicon-chevron-right');
+                btn.classList.remove('expanded');
+                btn.setAttribute('aria-expanded', 'false');
+                btn.setAttribute('aria-label', UI.EXPAND_MAPPINGS);
+                btn.title = UI.EXPAND_MAPPINGS;
+            }
             return;
         }
         // expand: build mappings row
@@ -253,7 +266,14 @@ function render(model: any) {
         mtr.appendChild(td);
         tr.parentElement!.insertBefore(mtr, tr.nextSibling);
         const btn = tr.querySelector("button[data-act='expand']");
-        if (btn) { btn.classList.remove('codicon-chevron-right'); btn.classList.add('codicon-chevron-down'); }
+        if (btn) {
+            btn.classList.remove('codicon-chevron-right');
+            btn.classList.add('codicon-chevron-down');
+            btn.classList.add('expanded');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.setAttribute('aria-label', UI.COLLAPSE_MAPPINGS);
+            btn.title = UI.COLLAPSE_MAPPINGS;
+        }
     }
 
     // mapping click handling moved into tbody click listener above
