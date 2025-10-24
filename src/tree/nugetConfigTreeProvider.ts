@@ -14,6 +14,7 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private isSearching = false;
     private cachedNodes: NodeData[] = [];
+    private globalConfigWatcher?: vscode.FileSystemWatcher;
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger) {
         // Watch for nuget.config file changes and refresh the tree
@@ -39,9 +40,13 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         // React to configuration changes for showing global config
         context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration(SETTING_SHOW_GLOBAL)) {
+                this.updateGlobalConfigWatcher();
                 this.refresh();
             }
         }));
+
+        // Initialize global config watcher based on current settings
+        this.updateGlobalConfigWatcher();
     }
 
     private isExcludedPath(fsPath: string): boolean {
@@ -60,8 +65,10 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
      * This is more efficient than refresh() when only one file has changed.
      */
     async refreshFile(uri: vscode.Uri): Promise<void> {
-        // Find the cached node for this URI
-        const nodeIndex = this.cachedNodes.findIndex(n => n.uri?.toString() === uri.toString());
+        // Find the cached node for this URI - use fsPath for more reliable comparison
+        // This handles cases where URI objects might be different instances but point to the same file
+        const nodeIndex = this.cachedNodes.findIndex(n => 
+            n.uri?.fsPath.toLowerCase() === uri.fsPath.toLowerCase());
         
         if (nodeIndex >= 0) {
             // Update just this node's description
@@ -185,13 +192,88 @@ export class NugetConfigTreeProvider implements vscode.TreeDataProvider<NodeData
         // The actual search happens in the next getChildren() call
         await new Promise(resolve => setTimeout(resolve, SEARCHING_STATUS_MIN_DURATION_MS));
     }
+
+    /**
+     * Update the global config file watcher based on current settings.
+     * Creates or destroys the watcher as needed.
+     */
+    private updateGlobalConfigWatcher(): void {
+        // Dispose existing watcher if it exists
+        if (this.globalConfigWatcher) {
+            this.globalConfigWatcher.dispose();
+            this.globalConfigWatcher = undefined;
+        }
+
+        // Create new watcher if global config should be shown
+        const showGlobal = vscode.workspace.getConfiguration('nugetConfigEditor').get<boolean>('showGlobalConfig', false);
+        if (showGlobal) {
+            const globalPath = findGlobalNugetConfig();
+            if (globalPath) {
+                try {
+                    // Create a watcher for the specific global config file
+                    this.globalConfigWatcher = vscode.workspace.createFileSystemWatcher(globalPath);
+                    
+                    // Handle changes to the global config file
+                    this.globalConfigWatcher.onDidChange((uri) => {
+                        this.log.debug(`🔄 Global nuget.config changed: ${uri.fsPath}, refreshing tree item`);
+                        this.refreshFile(uri);
+                    });
+                    
+                    // Handle deletion of the global config file
+                    this.globalConfigWatcher.onDidDelete(() => {
+                        this.log.debug('🗑️ Global nuget.config deleted, refreshing tree');
+                        this.refresh();
+                    });
+                    
+                    // Handle creation of the global config file
+                    this.globalConfigWatcher.onDidCreate((uri) => {
+                        this.log.debug('✨ Global nuget.config created, refreshing tree');
+                        this.refresh();
+                    });
+                    
+                    this.context.subscriptions.push(this.globalConfigWatcher);
+                    this.log.debug(`👀 Watching global nuget.config at: ${globalPath}`);
+                } catch (error) {
+                    this.log.warn('⚠️ Failed to create global config watcher', { error: String(error), path: globalPath });
+                }
+            }
+        }
+    }
+
+    /**
+     * Manually refresh the global config tree item.
+     * This is useful when external changes are made that don't trigger file watchers.
+     */
+    refreshGlobalConfig(): void {
+        const showGlobal = vscode.workspace.getConfiguration('nugetConfigEditor').get<boolean>('showGlobalConfig', false);
+        if (showGlobal) {
+            const globalPath = findGlobalNugetConfig();
+            if (globalPath) {
+                const uri = vscode.Uri.file(globalPath);
+                this.log.debug(`🔄 Manually refreshing global config: ${globalPath}`);
+                this.refreshFile(uri);
+            }
+        }
+    }
+
+    /**
+     * Dispose of resources when the tree provider is disposed.
+     */
+    dispose(): void {
+        if (this.globalConfigWatcher) {
+            this.globalConfigWatcher.dispose();
+            this.globalConfigWatcher = undefined;
+        }
+    }
 }
 
 export function registerNugetConfigTree(context: vscode.ExtensionContext, log: Logger): NugetConfigTreeProvider {
     const provider = new NugetConfigTreeProvider(context, log);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('nugetConfigEditor.configs', provider),
-        vscode.commands.registerCommand('nuget-config-editor.refreshConfigTree', () => provider.refresh())
+        vscode.commands.registerCommand('nuget-config-editor.refreshConfigTree', () => provider.refresh()),
+        // Ensure proper cleanup of the tree provider
+        { dispose: () => provider.dispose() }
     );
     // Trigger initial refresh to ensure tree updates after workspace is fully loaded
     setTimeout(() => provider.refresh(), 10);

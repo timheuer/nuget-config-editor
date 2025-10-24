@@ -83,6 +83,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         await writeModelToUri(document.uri, model, preserveUnknown);
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: true });
                         this.log.info('✅ nuget.config saved successfully');
+                        // Notify tree provider of file changes
+                        this.onFileSaved?.(document.uri);
                     } catch (err) {
                         this.log.error('❌ Save failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
@@ -139,6 +141,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             await writeModelToUri(document.uri, model, preserveUnknown);
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
                             this.log.debug('✍️ Wrote changes directly to file outside workspace');
+                            // Notify tree provider of file changes
+                            this.onFileSaved?.(document.uri);
                         }
                     } catch (err) {
                         this.log.error('❌ Persist failed', { error: String(err) });
@@ -196,6 +200,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             await writeModelToUri(document.uri, model, preserveUnknown);
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_DELETE});
                             this.log.debug(`✅ Deleted source ${key} by writing directly to file outside workspace`);
+                            // Notify tree provider of file changes
+                            this.onFileSaved?.(document.uri);
                         }
                         
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
@@ -254,6 +260,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             await writeModelToUri(document.uri, model, preserveUnknown);
                             webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
                             this.log.debug(`🗑️ Removed pattern ${pattern} from mapping ${key} by writing directly to file outside workspace`);
+                            // Notify tree provider of file changes
+                            this.onFileSaved?.(document.uri);
                         }
 
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
