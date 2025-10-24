@@ -63,7 +63,115 @@ function ensureStyles() {
     .pattern-badge-btn:focus { outline: none; box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
     .pattern-badge-btn .codicon { font-size: 0.95em; }
     .add-pattern { display:flex; gap:.5rem; align-items:center; margin-top:.35rem; }
-    .sources-table { width:100%; border-collapse:collapse; font-size:0.95rem; }
+    
+    /* Modern card-based layout inspired by the attached UI */
+    .sources-container { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
+    .source-card { 
+        background: var(--vscode-editor-background); 
+        border: 1px solid var(--vscode-panel-border); 
+        border-radius: 6px; 
+        padding: 12px 16px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; 
+        gap: 16px;
+        transition: background-color 0.1s ease;
+    }
+    .source-card:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+    .source-card.disabled {
+        opacity: 0.6;
+    }
+    .source-info { 
+        flex: 1; 
+        min-width: 0; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 4px;
+    }
+    .source-title { 
+        font-weight: 600; 
+        font-size: 14px; 
+        color: var(--vscode-foreground);
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .source-card.disabled .source-title {
+        text-decoration: line-through;
+    }
+    .source-url { 
+        font-size: 12px; 
+        color: var(--vscode-descriptionForeground);
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .source-card.disabled .source-url {
+        font-style: italic;
+    }
+    .source-controls { 
+        display: flex; 
+        align-items: center; 
+        gap: 12px;
+        flex-shrink: 0;
+    }
+    
+    /* Toggle switch styling */
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+    }
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        transition: 0.2s;
+        border-radius: 12px;
+    }
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 2px;
+        top: 2px;
+        background-color: var(--vscode-input-foreground);
+        transition: 0.2s;
+        border-radius: 50%;
+    }
+    input:checked + .toggle-slider {
+        background-color: var(--vscode-button-background);
+        border-color: var(--vscode-button-background);
+    }
+    input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+        background-color: var(--vscode-button-foreground);
+    }
+    .toggle-slider:hover {
+        background-color: var(--vscode-input-hoverBackground, var(--vscode-input-background));
+    }
+    input:checked + .toggle-slider:hover {
+        background-color: var(--vscode-button-hoverBackground);
+    }
+    
+    /* Fallback table styles for compatibility */
+    .sources-table { width:100%; border-collapse:collapse; font-size:0.95rem; display: none; }
     .sources-table th, .sources-table td { text-align:left; padding:8px 6px; vertical-align:middle; border-top:1px solid var(--vscode-editorWidget-border); }
     .sources-table thead th { font-weight:600; color:var(--vscode-foreground); }
     .sources-table th:last-child, .sources-table td:last-child { width:160px; }
@@ -76,7 +184,7 @@ function ensureStyles() {
     .status-indicator.disabled { color: var(--vscode-testing-iconFailed); }
     .actions-cell { display:flex; gap:.4rem; align-items:center; flex-wrap:nowrap; justify-content:flex-start; white-space:nowrap; }
     .form-row { display:flex; gap:.5rem; align-items:baseline; }
-    .form-row input[type="text"], .form-row input[type="url"], .form-row input { font-family: var(--vscode-font-family); font-size: 0.95rem; }
+    .form-row input[type="text"], .form-row input[type="url"], .form-row input { font-family: var(--vscode-font-family); font-size: small; }
     .small-input { flex:0 0 140px; min-width:90px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
     .full-input { flex:1 1 auto; min-width:140px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
     /* Icon-style buttons that resemble VS Code icon buttons (icon-only) */
@@ -92,6 +200,14 @@ function ensureStyles() {
     .vscode-btn.save { width:auto; height:auto; padding:6px 10px; display:inline-flex; gap:6px; align-items:center; }
     .vscode-btn.save:focus { background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); }
     .nuget-error { color: var(--vscode-editorError-foreground); }
+    
+    /* Empty state styling */
+    .empty-state {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--vscode-descriptionForeground);
+        font-style: italic;
+    }
     `;
     const s = document.createElement('style');
     s.textContent = css;
@@ -112,47 +228,44 @@ function render(model: any) {
     heading.textContent = UI.PACKAGE_SOURCES;
     container.appendChild(heading);
 
-    // Package Sources table (render first)
-    const table = document.createElement('table');
-    table.className = 'sources-table';
-    // Columns: expand, Key, URL, Enabled, Actions
-    table.innerHTML = `<thead><tr><th></th><th>${UI.KEY}</th><th>${UI.URL}</th><th>${UI.ENABLED}</th><th>${UI.ACTIONS}</th></tr></thead>`;
-    const tbody = document.createElement('tbody');
+    // Package Sources cards (modern UI)
+    const sourcesContainer = document.createElement('div');
+    sourcesContainer.className = 'sources-container';
+    
     if (!model.sources.length) {
-        const tr = document.createElement('tr');
-        // colspan matches number of columns in header
-        tr.innerHTML = `<td colspan="5" style="opacity:.7;">${UI.NO_SOURCES}</td>`;
-        tbody.appendChild(tr);
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        emptyState.textContent = UI.NO_SOURCES;
+        sourcesContainer.appendChild(emptyState);
     } else {
         for (const s of model.sources) {
-            const tr = document.createElement('tr');
-            tr.dataset.key = s.key;
+            const card = document.createElement('div');
+            card.className = 'source-card';
+            card.dataset.key = s.key;
 
             // Apply disabled styling if source is disabled
             if (!s.enabled) {
-                tr.classList.add('disabled-source');
+                card.classList.add('disabled');
             }
 
-            // Enhanced status indicator with icon and text
-            const statusIcon = s.enabled ? 'codicon-check-all' : 'codicon-circle-slash';
-            const statusClass = s.enabled ? 'enabled' : 'disabled';
-            const statusText = s.enabled ? UI.YES : UI.NO;
-
-            tr.innerHTML = `
-                <td><button data-act='expand' aria-label='${UI.EXPAND_MAPPINGS}' title='${UI.EXPAND_MAPPINGS}' aria-expanded='false' class='codicon codicon-chevron-right vscode-btn icon-only'></button></td>
-                <td class="keyCell">${escapeHtml(s.key)}</td>
-                <td class="urlCell">${escapeHtml(s.url)}</td>
-                <td><span class="status-indicator ${statusClass}"><i class="codicon ${statusIcon}"></i>${statusText}</span></td>
-                <td class="actions-cell">
+            card.innerHTML = `
+                <button data-act='expand' aria-label='${UI.EXPAND_MAPPINGS}' title='${UI.EXPAND_MAPPINGS}' aria-expanded='false' class='codicon codicon-chevron-right vscode-btn icon-only'></button>
+                <div class="source-info">
+                    <div class="source-title">${escapeHtml(s.key)}</div>
+                    <div class="source-url">${escapeHtml(s.url)}</div>
+                </div>
+                <div class="source-controls">
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-act="toggle" ${s.enabled ? 'checked' : ''} aria-label="${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}">
+                        <span class="toggle-slider"></span>
+                    </label>
                     <button data-act='edit' aria-label='${UI.EDIT_SOURCE}' title='${UI.EDIT}' class='codicon codicon-edit vscode-btn icon-only'></button>
-                    <button data-act='toggle' aria-label='${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}' title='${s.enabled ? UI.DISABLE : UI.ENABLE}' class='codicon ${s.enabled ? 'codicon-circle-slash' : 'codicon-check'} vscode-btn icon-only'></button>
                     <button data-act='delete' aria-label='${UI.DELETE_SOURCE}' title='${UI.DELETE}' class='codicon codicon-trash vscode-btn icon-only'></button>
-                </td>`;
-            tbody.appendChild(tr);
+                </div>`;
+            sourcesContainer.appendChild(card);
         }
     }
-    table.appendChild(tbody);
-    container.appendChild(table);
+    container.appendChild(sourcesContainer);
 
     // Add Source form - prominent primary button style (keeps minimal styles)
     const addForm = document.createElement('div');
@@ -177,12 +290,12 @@ function render(model: any) {
 
     // Actions container (edits are applied immediately via messages)
 
-    tbody.addEventListener('click', (e: any) => {
+    sourcesContainer.addEventListener('click', (e: any) => {
         const btn = e.target.closest('button, input[type="checkbox"]');
         if (!btn) { return; }
-        const tr = btn.closest('tr');
-        // For mapping rows the tr may be the mappings-row which uses dataset.for
-        const key = tr?.dataset.key || tr?.dataset.for;
+        const card = btn.closest('.source-card, .mappings-row');
+        // For mapping rows the element may be the mappings-row which uses dataset.for
+        const key = card?.dataset.key || card?.dataset.for;
         const act = (btn.getAttribute && btn.getAttribute('data-act')) || (btn.type === 'checkbox' ? 'toggle' : null);
 
         // Toggle action (either checkbox or action button)
@@ -231,19 +344,19 @@ function render(model: any) {
             // Webviews are sandboxed and confirm() is ignored; ask the host to show a native confirmation
             vscodeApi.postMessage({ type: 'requestDelete', key });
         } else if (act === 'edit') {
-            enterEditRow(tr, key, model);
+            enterEditRow(card, key, model);
         } else if (act === 'expand') {
-            toggleExpandRow(tr, key, model);
+            toggleExpandRow(card, key, model);
         }
     });
 
-    // Toggle expand/collapse: show mappings row directly under the source row
-    function toggleExpandRow(tr: HTMLTableRowElement, key: string, model: any) {
-        const next = tr.nextElementSibling as HTMLTableRowElement | null;
+    // Toggle expand/collapse: show mappings section directly under the source card
+    function toggleExpandRow(card: HTMLElement, key: string, model: any) {
+        const next = card.nextElementSibling as HTMLElement | null;
         if (next && next.classList.contains('mappings-row') && next.dataset.for === key) {
             // collapse
             next.remove();
-            const btn = tr.querySelector("button[data-act='expand']");
+            const btn = card.querySelector("button[data-act='expand']");
             if (btn) {
                 btn.classList.remove('codicon-chevron-down');
                 btn.classList.add('codicon-chevron-right');
@@ -254,16 +367,14 @@ function render(model: any) {
             }
             return;
         }
-        // expand: build mappings row
+        // expand: build mappings section
         const mapping = (model.mappings || []).find((m: any) => m.sourceKey === key);
         const patterns = mapping ? mapping.patterns.slice() : [];
-        const columns = table.querySelectorAll('thead th').length;
-        const mtr = document.createElement('tr');
-        mtr.className = 'mappings-row';
-        mtr.dataset.for = key;
-        const td = document.createElement('td');
-        td.colSpan = columns;
-        td.style.padding = '0.5rem 0.75rem';
+        const mappingsDiv = document.createElement('div');
+        mappingsDiv.className = 'mappings-row source-card';
+        mappingsDiv.dataset.for = key;
+        mappingsDiv.style.marginTop = '4px';
+        mappingsDiv.style.paddingLeft = '48px'; // Indent to align with content
         // Build inner HTML for patterns list + add pattern input
         let inner = `<div style="margin:0.2rem 0 .4rem 0; font-weight:600;">${UI.PACKAGE_SOURCE_MAPPINGS} — ${escapeHtml(key)} (${patterns.length})</div>`;
         inner += `<ul class='patterns' style='margin:0 0 .4rem 0; padding:0; list-style:none;'>`;
@@ -274,12 +385,11 @@ function render(model: any) {
         }
         inner += `</ul>`;
         inner += `<div class='add-pattern' style='display:flex; gap:.5rem; align-items:center;'><input type='text' placeholder='${UI.ADD_PATTERN}' class='small-input' aria-label='${UI.ADD_PATTERN}' /> <button data-act='addPattern' data-key='${escapeHtml(key)}' aria-label='${UI.ADD_PATTERN}' title='${UI.ADD_PATTERN}' class='codicon codicon-add vscode-btn icon-only'></button></div>`;
-        td.innerHTML = inner;
-        mtr.appendChild(td);
-        tr.parentElement!.insertBefore(mtr, tr.nextSibling);
+        mappingsDiv.innerHTML = inner;
+        card.parentElement!.insertBefore(mappingsDiv, card.nextSibling);
         // Support adding pattern by pressing Enter in the input field (same behavior as the add button)
         try {
-            const patternInput = mtr.querySelector("input[type='text']") as HTMLInputElement | null;
+            const patternInput = mappingsDiv.querySelector("input[type='text']") as HTMLInputElement | null;
             if (patternInput) {
                 patternInput.addEventListener('keydown', (e: KeyboardEvent) => {
                     if (e.key === 'Enter') {
@@ -298,7 +408,7 @@ function render(model: any) {
         } catch (err) {
             // Defensive: avoid breaking webview if DOM APIs behave unexpectedly
         }
-        const btn = tr.querySelector("button[data-act='expand']");
+        const btn = card.querySelector("button[data-act='expand']");
         if (btn) {
             btn.classList.remove('codicon-chevron-right');
             btn.classList.add('codicon-chevron-down');
@@ -309,35 +419,37 @@ function render(model: any) {
         }
     }
 
-    // mapping click handling moved into tbody click listener above
+    // mapping click handling moved into sourcesContainer click listener above
 }
 
-function enterEditRow(tr: HTMLTableRowElement, key: string, model: any) {
+function enterEditRow(card: HTMLElement, key: string, model: any) {
     const source = model.sources.find((s: any) => s.key === key);
     if (!source) { return; }
-    const cells = tr.querySelectorAll('td');
-    // columns: [0]=expand, [1]=key, [2]=url, [3]=enabled, [4]=actions
-    const keyCell = cells[1];
-    const urlCell = cells[2];
-    const enabledCell = cells[3];
-    const actionsCell = cells[4];
-    keyCell.innerHTML = `<input value='${escapeHtml(source.key)}' class='small-input' aria-label='Edit source key' />`;
-    urlCell.innerHTML = `<input value='${escapeHtml(source.url)}' class='full-input' aria-label='Edit source URL' />`;
     
-    // Preserve the enhanced status display during edit
-    const statusIcon = source.enabled ? 'codicon-check-all' : 'codicon-circle-slash';
-    const statusClass = source.enabled ? 'enabled' : 'disabled';
-    const statusText = source.enabled ? UI.YES : UI.NO;
-    enabledCell.innerHTML = `<span class="status-indicator ${statusClass}"><i class="codicon ${statusIcon}"></i>${statusText}</span>`;
+    // Replace the card content with edit form
+    const expandBtn = card.querySelector("button[data-act='expand']");
+    const expandBtnHtml = expandBtn ? expandBtn.outerHTML : '';
     
-    actionsCell.innerHTML = `<button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button> <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>`;
-    actionsCell.addEventListener('click', function handler(e: any) {
+    card.innerHTML = `
+        ${expandBtnHtml}
+        <div class="source-info" style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <input value='${escapeHtml(source.key)}' class='small-input' placeholder='${UI.KEY}' aria-label='Edit source key' style='width: 100%;' />
+            <input value='${escapeHtml(source.url)}' class='full-input' placeholder='${UI.URL}' aria-label='Edit source URL' style='width: 100%;' />
+        </div>
+        <div class="source-controls">
+            <button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button>
+            <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>
+        </div>`;
+        
+    card.addEventListener('click', function handler(e: any) {
         const b = e.target.closest('button');
         if (!b) { return; }
         const act = b.getAttribute('data-act');
         if (act === 'saveEdit') {
-            const newKey = (keyCell.querySelector('input') as HTMLInputElement).value.trim();
-            const newUrl = (urlCell.querySelector('input') as HTMLInputElement).value.trim();
+            const keyInput = card.querySelector('input[aria-label="Edit source key"]') as HTMLInputElement;
+            const urlInput = card.querySelector('input[aria-label="Edit source URL"]') as HTMLInputElement;
+            const newKey = keyInput.value.trim();
+            const newUrl = urlInput.value.trim();
             if (newKey && newUrl) {
                 vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'updateSource', key, newKey, url: newUrl }] });
             }
