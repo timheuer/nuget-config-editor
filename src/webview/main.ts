@@ -248,10 +248,16 @@ function render(model: any) {
                 card.classList.add('disabled');
             }
 
+            // Check if this source has package mappings
+            const mapping = (model.mappings || []).find((m: any) => m.sourceKey === s.key);
+            const mappingCount = mapping ? mapping.patterns.length : 0;
+            const mappingText = mappingCount > 0 ? ` (${mappingCount} pattern${mappingCount !== 1 ? 's' : ''})` : '';
+            const displayTitle = `${escapeHtml(s.key)}${mappingText}`;
+
             card.innerHTML = `
                 <button data-act='expand' aria-label='${UI.EXPAND_MAPPINGS}' title='${UI.EXPAND_MAPPINGS}' aria-expanded='false' class='codicon codicon-chevron-right vscode-btn icon-only'></button>
                 <div class="source-info">
-                    <div class="source-title">${escapeHtml(s.key)}</div>
+                    <div class="source-title">${displayTitle}</div>
                     <div class="source-url">${escapeHtml(s.url)}</div>
                 </div>
                 <div class="source-controls">
@@ -376,7 +382,7 @@ function render(model: any) {
         mappingsDiv.style.marginTop = '4px';
         mappingsDiv.style.paddingLeft = '48px'; // Indent to align with content
         // Build inner HTML for patterns list + add pattern input
-        let inner = `<div style="margin:0.2rem 0 .4rem 0; font-weight:600;">${UI.PACKAGE_SOURCE_MAPPINGS} — ${escapeHtml(key)} (${patterns.length})</div>`;
+        let inner = `<div style="margin:0.2rem 0 .4rem 0; font-weight:600;">Patterns: ${patterns.length}</div>`;
         inner += `<ul class='patterns' style='margin:0 0 .4rem 0; padding:0; list-style:none;'>`;
         for (const p of patterns) {
             // Render the pattern as a single interactive button styled like a badge.
