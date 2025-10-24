@@ -58,6 +58,7 @@ function ensureStyles() {
     .patterns li { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:2px 0; }
     .pattern-label { display:inline-flex; align-items:center; gap:.25rem; }
     .badge { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:2px 6px; border-radius:2px; font-size:0.85em; vertical-align:baseline; }
+    
     /* Pattern badge that is an interactive button (large clickable area) */
     .pattern-badge-btn { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:6px 10px; border-radius:2px; font-size:0.85em; display:inline-flex; align-items:center; gap:.35rem; border:none; cursor:pointer; min-height:22px; }
     .pattern-badge-btn:focus { outline: none; box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
@@ -175,9 +176,11 @@ function ensureStyles() {
     .sources-table th, .sources-table td { text-align:left; padding:8px 6px; vertical-align:middle; border-top:1px solid var(--vscode-editorWidget-border); }
     .sources-table thead th { font-weight:600; color:var(--vscode-foreground); }
     .sources-table th:last-child, .sources-table td:last-child { width:160px; }
+
     /* Disabled source row styling */
     .sources-table tbody tr.disabled-source .keyCell { text-decoration: line-through; opacity: 0.7; }
     .sources-table tbody tr.disabled-source .urlCell { color: var(--vscode-descriptionForeground); font-style: italic; }
+    
     /* Status indicators with icons */
     .status-indicator { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.9em; }
     .status-indicator.enabled { color: var(--vscode-testing-iconPassed); }
@@ -185,17 +188,30 @@ function ensureStyles() {
     .actions-cell { display:flex; gap:.4rem; align-items:center; flex-wrap:nowrap; justify-content:flex-start; white-space:nowrap; }
     .form-row { display:flex; gap:.5rem; align-items:baseline; }
     .form-row input[type="text"], .form-row input[type="url"], .form-row input { font-family: var(--vscode-font-family); font-size: small; }
-    .small-input { flex:0 0 140px; min-width:90px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
+    .small-input { flex:0 0 auto; min-width:90px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
     .full-input { flex:1 1 auto; min-width:140px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
+    .edit-fields-container { display: flex; gap: 12px; align-items: flex-start; flex: 1; }
+    .edit-field { display: flex; flex-direction: column; gap: 4px; }
+    .edit-field.key-field { flex: 0 0 33.333%; }
+    .edit-field.url-field { flex: 1; }
+    
+    /* Align source-controls with input fields (not labels) in edit mode */
+    .source-card:has(.edit-fields-container) .source-controls {
+        padding-top: 22px;
+    }
+    
     /* Icon-style buttons that resemble VS Code icon buttons (icon-only) */
     .vscode-btn { background: transparent; border: none; padding:0; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; color:var(--vscode-icon-foreground); cursor:pointer; transition: background .08s ease, transform .02s ease; }
     .vscode-btn:hover { background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); }
     .vscode-btn:active { background: var(--vscode-button-activeBackground); color: var(--vscode-button-foreground); transform: translateY(1px); }
+    
     /* Make focused buttons visible (match hover background + focus ring) */
     .vscode-btn:focus { outline: none; background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
     .vscode-btn.icon-only { padding:0; }
+    
     /* Expanded state for the expand/collapse button: solid background and foreground to remain visible */
     .vscode-btn.expanded { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    
     /* Slightly larger-looking save button (text or icon+text) */
     .vscode-btn.save { width:auto; height:auto; padding:6px 10px; display:inline-flex; gap:6px; align-items:center; }
     .vscode-btn.save:focus { background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); }
@@ -316,7 +332,8 @@ function render(model: any) {
         // Also handle requestDeletePattern which asks the host to confirm and perform deletion
         if (act === 'removePattern' || act === 'addPattern' || act === 'requestDeletePattern') {
             // Determine source key from button attribute or mappings-row dataset
-            const mapKey = btn.getAttribute('data-key') || tr?.dataset.for;
+            const mappingsRow = btn.closest('.mappings-row');
+            const mapKey = btn.getAttribute('data-key') || mappingsRow?.dataset.for;
             if (!mapKey) { return; }
             if (act === 'removePattern') {
                 const pattern = btn.getAttribute('data-pattern');
@@ -331,16 +348,16 @@ function render(model: any) {
                 // Ask the host to show native confirmation and perform deletion
                 vscodeApi.postMessage({ type: 'requestDeletePattern', key: mapKey, pattern });
             } else if (act === 'addPattern') {
-                const input = tr.querySelector('input');
+                const input = mappingsRow?.querySelector('input');
                 if (!input) { return; }
-                const val = input.value.trim();
+                const val = (input as HTMLInputElement).value.trim();
                 if (!val) { return; }
                 const mapping = (model.mappings || []).find((m: any) => m.sourceKey === mapKey);
                 const patterns = mapping ? mapping.patterns.slice() : [];
                 if (patterns.includes(val)) { return; }
                 patterns.push(val);
                 vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'setMappings', key: mapKey, patterns }] });
-                input.value = '';
+                (input as HTMLInputElement).value = '';
             }
             return;
         }
@@ -437,17 +454,24 @@ function enterEditRow(card: HTMLElement, key: string, model: any) {
     
     card.innerHTML = `
         ${expandBtnHtml}
-        <div class="source-info" style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-            <input value='${escapeHtml(source.key)}' class='small-input' placeholder='${UI.KEY}' aria-label='Edit source key' style='width: 100%;' />
-            <input value='${escapeHtml(source.url)}' class='full-input' placeholder='${UI.URL}' aria-label='Edit source URL' style='width: 100%;' />
+        <div class="edit-fields-container">
+            <div class="edit-field key-field">
+                <label style="font-size: 0.8rem; color: var(--vscode-descriptionForeground);">${UI.KEY}</label>
+                <input value='${escapeHtml(source.key)}' class='small-input' aria-label='Edit source key' />
+            </div>
+            <div class="edit-field url-field">
+                <label style="font-size: 0.8rem; color: var(--vscode-descriptionForeground);">${UI.URL}</label>
+                <input value='${escapeHtml(source.url)}' class='full-input' aria-label='Edit source URL' />
+            </div>
         </div>
         <div class="source-controls">
             <button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button>
             <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>
         </div>`;
-        
-    card.addEventListener('click', function handler(e: any) {
-        const b = e.target.closest('button');
+    
+    // Create a persistent handler that lives as long as the card is in edit mode
+    const handleEditClick = (e: Event) => {
+        const b = (e.target as HTMLElement).closest('button');
         if (!b) { return; }
         const act = b.getAttribute('data-act');
         if (act === 'saveEdit') {
@@ -456,12 +480,15 @@ function enterEditRow(card: HTMLElement, key: string, model: any) {
             const newKey = keyInput.value.trim();
             const newUrl = urlInput.value.trim();
             if (newKey && newUrl) {
+                card.removeEventListener('click', handleEditClick);
                 vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'updateSource', key, newKey, url: newUrl }] });
             }
         } else if (act === 'cancelEdit') {
+            card.removeEventListener('click', handleEditClick);
             vscodeApi.postMessage({ type: 'requestReparse' });
         }
-    }, { once: true });
+    };
+    card.addEventListener('click', handleEditClick);
 }
 
 function escapeHtml(str: string) {
