@@ -26,8 +26,8 @@ const UI = {
     DELETE: 'Delete',
     ADD_SOURCE: 'Add source',
     PACKAGE_SOURCE_MAPPINGS: 'Package Source Mappings',
-    EXPAND_MAPPINGS: 'Expand mappings',
-    COLLAPSE_MAPPINGS: 'Collapse mappings',
+    EXPAND_MAPPINGS: 'Expand package source mappings',
+    COLLAPSE_MAPPINGS: 'Collapse package source mappings',
     PATTERN: 'pattern',
     PATTERNS: 'patterns',
     REMOVE_PATTERN: 'Remove pattern',
@@ -67,7 +67,7 @@ function ensureStyles() {
     /* Modern card-based layout inspired by the attached UI */
     .sources-container { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
     .source-card { 
-        background: var(--vscode-editor-background); 
+        background: var(--vscode-textCodeBlock-background); 
         border: 1px solid var(--vscode-panel-border); 
         border-radius: 6px; 
         padding: 12px 16px; 
@@ -81,7 +81,7 @@ function ensureStyles() {
         background: var(--vscode-list-hoverBackground);
     }
     .source-card.disabled {
-        opacity: 0.6;
+        color: var(--vscode-panel-border);
     }
     .source-info { 
         flex: 1; 
@@ -89,10 +89,10 @@ function ensureStyles() {
         display: flex; 
         flex-direction: column; 
         gap: 4px;
+        font-size: var(--vscode-font-size);
     }
     .source-title { 
         font-weight: 600; 
-        font-size: 14px; 
         color: var(--vscode-foreground);
         margin: 0;
         overflow: hidden;
@@ -100,18 +100,18 @@ function ensureStyles() {
         white-space: nowrap;
     }
     .source-card.disabled .source-title {
-        text-decoration: line-through;
+        color: var(--vscode-panel-border);
     }
     .source-url { 
-        font-size: 12px; 
         color: var(--vscode-descriptionForeground);
         margin: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-family: var(--vscode-editor-font-family);
     }
     .source-card.disabled .source-url {
-        font-style: italic;
+        color: var(--vscode-panel-border);
     }
     .source-controls { 
         display: flex; 
@@ -262,11 +262,11 @@ function render(model: any) {
                 </div>
                 <div class="source-controls">
                     <label class="toggle-switch">
-                        <input type="checkbox" data-act="toggle" ${s.enabled ? 'checked' : ''} aria-label="${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}">
+                        <input type="checkbox" title="${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}" data-act="toggle" ${s.enabled ? 'checked' : ''} aria-label="${s.enabled ? UI.DISABLE_SOURCE : UI.ENABLE_SOURCE}">
                         <span class="toggle-slider"></span>
                     </label>
-                    <button data-act='edit' aria-label='${UI.EDIT_SOURCE}' title='${UI.EDIT}' class='codicon codicon-edit vscode-btn icon-only'></button>
-                    <button data-act='delete' aria-label='${UI.DELETE_SOURCE}' title='${UI.DELETE}' class='codicon codicon-trash vscode-btn icon-only'></button>
+                    <button data-act='edit' aria-label='${UI.EDIT_SOURCE}' title='${UI.EDIT_SOURCE}' class='codicon codicon-edit vscode-btn icon-only'></button>
+                    <button data-act='delete' aria-label='${UI.DELETE_SOURCE}' title='${UI.DELETE_SOURCE}' class='codicon codicon-trash vscode-btn icon-only'></button>
                 </div>`;
             sourcesContainer.appendChild(card);
         }
@@ -381,9 +381,8 @@ function render(model: any) {
         mappingsDiv.dataset.for = key;
         mappingsDiv.style.marginTop = '4px';
         mappingsDiv.style.paddingLeft = '48px'; // Indent to align with content
-        // Build inner HTML for patterns list + add pattern input
-        let inner = `<div style="margin:0.2rem 0 .4rem 0; font-weight:600;">Patterns: ${patterns.length}</div>`;
-        inner += `<ul class='patterns' style='margin:0 0 .4rem 0; padding:0; list-style:none;'>`;
+        // Build inner HTML for patterns list + add pattern input (no label)
+        let inner = `<ul class='patterns' style='margin:0 0 .4rem 0; padding:0; list-style:none;'>`;
         for (const p of patterns) {
             // Render the pattern as a single interactive button styled like a badge.
             // This ensures clicking anywhere on the badge triggers the delete request.
