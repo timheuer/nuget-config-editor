@@ -57,7 +57,60 @@ function ensureStyles() {
     .patterns { margin: 0; padding: 0; list-style: none; display:flex; }
     .patterns li { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:2px 0; }
     .pattern-label { display:inline-flex; align-items:center; gap:.25rem; }
-    .badge { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:2px 6px; border-radius:2px; font-size:0.85em; vertical-align:baseline; }
+    
+    /* vscode-badge styles */
+    .vscode-badge, .badge { 
+        background: var(--vscode-badge-background); 
+        color: var(--vscode-badge-foreground); 
+        padding: 2px 6px; 
+        border-radius: 2px; 
+        font-size: 0.85em; 
+        vertical-align: baseline;
+        display: inline-block;
+        border: 1px solid var(--vscode-badge-background);
+    }
+    
+    /* vscode-button styles */
+    .vscode-button, button:not([class*="codicon"]):not([class*="toggle"]) {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-family: var(--vscode-font-family);
+        font-size: inherit;
+        cursor: pointer;
+        transition: background-color 0.1s ease, color 0.1s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    .vscode-button:hover, button:not([class*="codicon"]):not([class*="toggle"]):hover {
+        background: var(--vscode-button-hoverBackground);
+        color: var(--vscode-button-foreground);
+    }
+    .vscode-button:active, button:not([class*="codicon"]):not([class*="toggle"]):active {
+        background: var(--vscode-button-activeBackground);
+        transform: translateY(1px);
+    }
+    .vscode-button:focus, button:not([class*="codicon"]):not([class*="toggle"]):focus {
+        outline: none;
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+    }
+    .vscode-button:disabled, button:not([class*="codicon"]):not([class*="toggle"]):disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    /* Secondary button variant */
+    .vscode-button.secondary, button.secondary:not([class*="codicon"]) {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+    }
+    .vscode-button.secondary:hover, button.secondary:not([class*="codicon"]):hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+    }
     
     /* Pattern badge that is an interactive button (large clickable area) */
     .pattern-badge-btn { background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); padding:6px 10px; border-radius:2px; font-size:0.85em; display:inline-flex; align-items:center; gap:.35rem; border:none; cursor:pointer; min-height:22px; }
@@ -188,8 +241,8 @@ function ensureStyles() {
     .actions-cell { display:flex; gap:.4rem; align-items:center; flex-wrap:nowrap; justify-content:flex-start; white-space:nowrap; }
     .form-row { display:flex; gap:.5rem; align-items:baseline; }
     .form-row input[type="text"], .form-row input[type="url"], .form-row input { font-family: var(--vscode-font-family); font-size: small; }
-    .small-input { flex:0 0 auto; min-width:90px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
-    .full-input { flex:1 1 auto; min-width:140px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); }
+    .small-input { flex:0 0 auto; min-width:90px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); font-family: var(--vscode-font-family); font-size: small; }
+    .full-input { flex:1 1 auto; min-width:140px; height:32px; padding:4px 8px; border-radius:4px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); font-family: var(--vscode-font-family); font-size: small;}
     .edit-fields-container { display: flex; gap: 12px; align-items: flex-start; flex: 1; }
     .edit-field { display: flex; flex-direction: column; gap: 4px; }
     .edit-field.key-field { flex: 0 0 33.333%; }
@@ -293,8 +346,8 @@ function render(model: any) {
     const addForm = document.createElement('div');
     addForm.className = 'form-row';
     addForm.innerHTML = `<input placeholder='${UI.KEY}' class='small-input' aria-label='Source key' />`+
-        `<input placeholder='${UI.URL}' class='full-input' aria-label='Source URL' />`+
-        `<button aria-label='${UI.ADD_SOURCE}' title='${UI.ADD_SOURCE}' class='vscode-btn save'>${UI.ADD_SOURCE}</button>`;
+        `<input placeholder='${UI.URL}' class='full-input' aria-label='Source URL' />` +
+        `<button aria-label='${UI.ADD_SOURCE}' title='${UI.ADD_SOURCE}' class='vscode-button'><i class="codicon codicon-add"></i><span>${UI.ADD_SOURCE}</span></button>`;
     const [keyInput, urlInput, addBtn] = Array.from(addForm.querySelectorAll('input,button')) as [HTMLInputElement, HTMLInputElement, HTMLButtonElement];
     addBtn.addEventListener('click', () => {
         if (!keyInput.value.trim() || !urlInput.value.trim()) { return; }
@@ -406,7 +459,7 @@ function render(model: any) {
             inner += `<li style='display:flex; justify-content:flex-start; align-items:center; gap:.5rem; padding:2px 5px;'><div class='pattern-label'><button type='button' data-act='requestDeletePattern' data-key='${escapeHtml(key)}' data-pattern='${escapeHtml(p)}' aria-label='${UI.REMOVE_PATTERN}' title='${UI.REMOVE_PATTERN}' class='pattern-badge-btn'>${escapeHtml(p)}<i class='codicon codicon-close'></i></button></div></li>`;
         }
         inner += `</ul>`;
-        inner += `<div class='add-pattern' style='display:flex; gap:.5rem; align-items:center;'><input type='text' placeholder='${UI.ADD_PATTERN}' class='small-input' aria-label='${UI.ADD_PATTERN}' /> <button data-act='addPattern' data-key='${escapeHtml(key)}' aria-label='${UI.ADD_PATTERN}' title='${UI.ADD_PATTERN}' class='codicon codicon-add vscode-btn icon-only'></button></div>`;
+        inner += `<div class='add-pattern' style='display:flex; gap:.5rem; align-items:center;'><input type='text' placeholder='${UI.ADD_PATTERN}' class='small-input' aria-label='${UI.ADD_PATTERN}' /> <button data-act='addPattern' data-key='${escapeHtml(key)}' aria-label='${UI.ADD_PATTERN}' title='${UI.ADD_PATTERN}' class='vscode-button'><i class='codicon codicon-add'></i><span>${UI.ADD_PATTERN}</span></button></div>`;
         mappingsDiv.innerHTML = inner;
         card.parentElement!.insertBefore(mappingsDiv, card.nextSibling);
         // Support adding pattern by pressing Enter in the input field (same behavior as the add button)
@@ -465,8 +518,8 @@ function enterEditRow(card: HTMLElement, key: string, model: any) {
             </div>
         </div>
         <div class="source-controls">
-            <button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='codicon codicon-save vscode-btn icon-only'></button>
-            <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='codicon codicon-discard vscode-btn icon-only'></button>
+            <button data-act='saveEdit' aria-label='${UI.SAVE}' title='${UI.SAVE}' class='vscode-btn icon-only' style='background: var(--vscode-button-background); color: var(--vscode-button-foreground);'><i class='codicon codicon-save'></i></button>
+            <button data-act='cancelEdit' aria-label='${UI.CANCEL}' title='${UI.CANCEL}' class='vscode-btn icon-only'><i class='codicon codicon-discard'></i></button>
         </div>`;
     
     // Create a persistent handler that lives as long as the card is in edit mode
