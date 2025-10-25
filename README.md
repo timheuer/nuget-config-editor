@@ -4,7 +4,9 @@ A Visual Studio Code extension that gives you a friendly, table-based editor for
 
 Edit package sources and package source mappings with a clear, accessible UI while preserving the intent of your original configuration when possible.
 
-<img alt="NuGet Config Editor screenshot" src="https://github.com/user-attachments/assets/9c4a9708-b0c3-4f37-871c-43c6ea0962a6" />
+<img alt="NuGet Config Editor screenshot" src="https://github.com/user-attachments/assets/93f93c73-5a5c-4a19-bbba-90294e81d872" />
+
+
 
 ## Key features
 
