@@ -69,6 +69,16 @@ function ensureStyles() {
         display: inline-block;
         border: 1px solid var(--vscode-badge-background);
     }
+
+    .pattern-count {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 8px;
+    }
     
     /* vscode-button styles */
     .vscode-button, button:not([class*="codicon"]):not([class*="toggle"]) {
@@ -152,6 +162,7 @@ function ensureStyles() {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding-bottom: 2px;
     }
     .source-card.disabled .source-title {
         color: var(--vscode-panel-border);
@@ -320,13 +331,14 @@ function render(model: any) {
             // Check if this source has package mappings
             const mapping = (model.mappings || []).find((m: any) => m.sourceKey === s.key);
             const mappingCount = mapping ? mapping.patterns.length : 0;
-            const mappingText = mappingCount > 0 ? ` (${mappingCount} pattern${mappingCount !== 1 ? 's' : ''})` : '';
-            const displayTitle = `${escapeHtml(s.key)}${mappingText}`;
+            const mappingText = mappingCount > 0 ? ` ${mappingCount} pattern${mappingCount !== 1 ? 's' : ''}` : '';
+            // Render the source title and, when patterns exist, render a badge-style tag next to the title
+            const badgeHtml = mappingCount > 0 ? `<span class="pattern-count" title="${mappingText}">${mappingText}</span>` : '';
 
             card.innerHTML = `
                 <button data-act='expand' aria-label='${UI.EXPAND_MAPPINGS}' title='${UI.EXPAND_MAPPINGS}' aria-expanded='false' class='codicon codicon-chevron-right vscode-btn icon-only'></button>
                 <div class="source-info">
-                    <div class="source-title">${displayTitle}</div>
+                    <div class="source-title">${escapeHtml(s.key)} ${badgeHtml}</div>
                     <div class="source-url">${escapeHtml(s.url)}</div>
                 </div>
                 <div class="source-controls">
