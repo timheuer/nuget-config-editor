@@ -308,6 +308,12 @@ function render(model: any) {
     heading.textContent = UI.PACKAGE_SOURCES;
     container.appendChild(heading);
 
+    // Note: editor-level toolbar actions (like "Open as Text") are provided
+    // via the extension's `contributes.editor/title` command so we deliberately
+    // do not duplicate that action inside the webview UI. Keep the webview
+    // UI focused on content editing and let VS Code provide the editor title
+    // button which invokes the command implemented in the extension host.
+
     // Package Sources cards (modern UI)
     const sourcesContainer = document.createElement('div');
     sourcesContainer.className = 'sources-container';
@@ -321,6 +327,7 @@ function render(model: any) {
         for (const s of model.sources) {
             const card = document.createElement('div');
             card.className = 'source-card';
+            card.draggable = true;
             card.dataset.key = s.key;
 
             // Apply disabled styling if source is disabled
@@ -353,6 +360,54 @@ function render(model: any) {
         }
     }
     container.appendChild(sourcesContainer);
+
+    // Enable drag/drop reordering of source cards
+    let dragKey: string | null = null;
+    sourcesContainer.addEventListener('dragstart', (e: DragEvent) => {
+        const card = (e.target as HTMLElement).closest('.source-card');
+        if (!card) { return; }
+        dragKey = card.dataset.key || null;
+        try { e.dataTransfer?.setData('text/plain', dragKey || ''); } catch {}
+        card.classList.add('dragging');
+    });
+    sourcesContainer.addEventListener('dragend', (e: DragEvent) => {
+        const card = (e.target as HTMLElement).closest('.source-card');
+        if (card) { card.classList.remove('dragging'); }
+        dragKey = null;
+    });
+    sourcesContainer.addEventListener('dragover', (e: DragEvent) => {
+        e.preventDefault();
+        const over = (e.target as HTMLElement).closest('.source-card');
+        const dragging = sourcesContainer.querySelector('.dragging');
+        if (!over || !dragging || over === dragging) { return; }
+        // Insert visual placeholder by moving elements in the DOM
+        const rect = over.getBoundingClientRect();
+        const after = (e.clientY || 0) > (rect.top + rect.height / 2);
+        if (after) {
+            if (over.nextSibling !== dragging) {
+                over.parentElement!.insertBefore(dragging as Node, over.nextSibling);
+            }
+        } else {
+            if (over.previousSibling !== dragging) {
+                over.parentElement!.insertBefore(dragging as Node, over);
+            }
+        }
+    });
+    sourcesContainer.addEventListener('drop', (e: DragEvent) => {
+        e.preventDefault();
+        const keys: string[] = [];
+        Array.from(sourcesContainer.querySelectorAll('.source-card')).forEach((el: Element) => {
+            const k = (el as HTMLElement).dataset.key;
+            if (k) { keys.push(k); }
+        });
+        if (keys.length && dragKey) {
+            vscodeApi.postMessage({ type: 'edit', ops: [{ kind: 'reorderSources', keys }] });
+        }
+        // cleanup
+        const dragging = sourcesContainer.querySelector('.dragging');
+        if (dragging) { dragging.classList.remove('dragging'); }
+        dragKey = null;
+    });
 
     // Add Source form - prominent primary button style (keeps minimal styles)
     const addForm = document.createElement('div');

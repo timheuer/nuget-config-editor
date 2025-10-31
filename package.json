@@ -55,6 +55,12 @@
         "title": "NuGet: Open Settings",
         "icon": "$(settings-gear)"
       }
+        ,
+        {
+          "command": "nuget-config-editor.openAsTextEditor",
+          "title": "NuGet: Open as Text Editor",
+          "icon": "$(file-text)"
+        }
     ],
     "customEditors": [
       {
@@ -95,6 +101,23 @@
           "when": "view == nugetConfigEditor.configs",
           "group": "navigation",
           "title": "Open Settings"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "nuget-config-editor.openAsTextEditor",
+          "when": "view == nugetConfigEditor.configs",
+          "group": "inline",
+          "title": "Open as Text"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "nuget-config-editor.openAsTextEditor",
+          "when": "activeCustomEditorId == 'nugetConfigEditor.visualEditor'",
+          "group": "navigation",
+          "title": "Open as Text",
+          "icon": "$(file-text)"
         }
       ]
     },

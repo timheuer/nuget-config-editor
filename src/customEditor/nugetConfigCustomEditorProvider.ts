@@ -28,6 +28,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
+        // No explicit context management required; use VS Code's
+        // `activeCustomEditorId` when-clause instead of setting our own context key.
         this.log.info('🚀 ' + MSG_OPENING_EDITOR);
         this.log.info(`📂 Opening file: ${document.uri.fsPath}`);
     // Allow loading codicons assets (fonts) from the bundled dist/webview folder so they are available in the VSIX
@@ -71,6 +73,16 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     load();
                     sendInit();
                     break;
+                case 'openAsText': {
+                    // Webview requested to open the current document in the plain text editor
+                    try {
+                        await vscode.commands.executeCommand('nuget-config-editor.openAsTextEditor', document.uri);
+                    } catch (err) {
+                        this.log.error('❌ Failed to open as text editor from webview', { error: String(err) });
+                        vscode.window.showErrorMessage(`Failed to open as text editor: ${err}`);
+                    }
+                    break;
+                }
                 case 'requestSave':
                     if (!model) { return; }
                     const issues = validate(model);
@@ -284,6 +296,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         webviewPanel.onDidDispose(() => {
             disposables.forEach(d => d.dispose());
             NugetConfigCustomEditorProvider.panels.delete(webviewPanel);
+            // Nothing to clean up regarding context keys when the panel is disposed.
         });
     }
 
@@ -333,5 +346,17 @@ export function sendToVisualEditor(uri: vscode.Uri, message: any): boolean {
         }
     }
     return false;
+}
+
+/**
+ * Returns the URI of the currently visible/active custom editor, if any.
+ * Useful for commands invoked from the custom editor title bar where no
+ * explicit URI argument is provided by VS Code.
+ */
+export function getActiveCustomEditorUri(): vscode.Uri | undefined {
+    for (const [panel, docUri] of (NugetConfigCustomEditorProvider as any).panels as Map<vscode.WebviewPanel, vscode.Uri>) {
+        if (panel.visible) { return docUri; }
+    }
+    return undefined;
 }
 

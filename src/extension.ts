@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor } from './customEditor/nugetConfigCustomEditorProvider';
+import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor, getActiveCustomEditorUri } from './customEditor/nugetConfigCustomEditorProvider';
 import { registerNugetConfigTree } from './tree/nugetConfigTreeProvider';
 import { createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
 import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, MSG_NO_NUGET_CONFIG_FOUND, MSG_SELECT_NUGET_CONFIG, MSG_SELECT_NUGET_CONFIG_FOR_SOURCE, MSG_ENTER_PACKAGE_SOURCE_KEY, MSG_ENTER_PACKAGE_SOURCE_URL, SETTING_PREFER_VISUAL_EDITOR } from './constants';
@@ -144,6 +144,45 @@ export function activate(context: vscode.ExtensionContext) {
 		}));
 	}
 	log.info('🚀 NuGet Config Editor activated');
+
+	// Command: open as plain text editor (tree inline button and custom editor title)
+	context.subscriptions.push(vscode.commands.registerCommand('nuget-config-editor.openAsTextEditor', async (arg?: any) => {
+		// The command can be invoked with various argument shapes depending on
+		// where it is invoked from (tree node, command palette, custom editor
+		// title button). Normalize to a vscode.Uri if possible.
+		let target: vscode.Uri | undefined;
+		if (arg instanceof vscode.Uri) {
+			target = arg;
+		} else if (arg && (arg.resourceUri instanceof vscode.Uri)) {
+			target = arg.resourceUri as vscode.Uri;
+		} else if (arg && (arg.uri instanceof vscode.Uri)) {
+			target = arg.uri as vscode.Uri;
+		}
+
+		// If no explicit argument resolved, try active text editor
+		if (!target) {
+			if (vscode.window.activeTextEditor && /nuget\.config$/i.test(vscode.window.activeTextEditor.document.uri.fsPath)) {
+				target = vscode.window.activeTextEditor.document.uri;
+			}
+		}
+
+		// If still no target, check for an active custom editor
+		if (!target) {
+			target = getActiveCustomEditorUri();
+		}
+
+		if (!target) {
+			vscode.window.showWarningMessage('No nuget.config target to open as text editor');
+			return;
+		}
+
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', target, 'default');
+		} catch (err) {
+			log.error('❌ Failed to open as text editor', { error: String(err), arg });
+			vscode.window.showErrorMessage(`Failed to open as text editor: ${err}`);
+		}
+	}));
 }
 
 // This method is called when your extension is deactivated

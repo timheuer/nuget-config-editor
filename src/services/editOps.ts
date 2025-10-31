@@ -78,6 +78,40 @@ export function applyEditOps(model: ConfigModel, ops: EditOp[], logger?: Logger)
                 }
                 break;
             }
+            case 'reorderSources': {
+                // Expect a full list of keys in the desired order
+                if (!Array.isArray((op as any).keys)) {
+                    logger?.debug('⏭️ reorderSources skipped - invalid keys');
+                    break;
+                }
+                const keys: string[] = (op as any).keys;
+                // Build a map for quick lookup
+                const map = new Map(current.sources.map(s => [s.key, s]));
+                const reordered: typeof current.sources = [];
+                for (const k of keys) {
+                    const src = map.get(k);
+                    if (src) { reordered.push({ ...src }); map.delete(k); }
+                }
+                // Append any sources that were not included in keys to preserve them
+                for (const s of current.sources) {
+                    if (map.has(s.key)) { reordered.push({ ...s }); }
+                }
+                current.sources = reordered;
+                // Reorder mappings to match new sources order (if present)
+                const mappingMap = new Map(current.mappings.map(m => [m.sourceKey, { sourceKey: m.sourceKey, patterns: [...m.patterns] }]));
+                const reorderedMappings: typeof current.mappings = [];
+                for (const s of current.sources) {
+                    const m = mappingMap.get(s.key);
+                    if (m) { reorderedMappings.push(m); mappingMap.delete(s.key); }
+                }
+                // Append any leftover mappings
+                for (const m of current.mappings) {
+                    if (mappingMap.has(m.sourceKey)) { reorderedMappings.push({ sourceKey: m.sourceKey, patterns: [...m.patterns] }); }
+                }
+                current.mappings = reorderedMappings;
+                logger?.debug('🔀 Reordered package sources', { keys });
+                break;
+            }
         }
     }
     return current;

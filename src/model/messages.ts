@@ -12,7 +12,8 @@ export type EditOp =
     | { kind: 'updateSource'; key: string; newKey?: string; url?: string }
     | { kind: 'deleteSource'; key: string }
     | { kind: 'toggleSource'; key: string; enabled: boolean }
-    | { kind: 'setMappings'; key: string; patterns: string[] };
+    | { kind: 'setMappings'; key: string; patterns: string[] }
+    | { kind: 'reorderSources'; keys: string[] };
 
 export type WebviewToHost =
     | { type: 'ready' }
