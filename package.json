@@ -39,7 +39,8 @@
     "commands": [
       {
         "command": "nuget-config-editor.openVisualEditor",
-        "title": "NuGet: Open nuget.config editor"
+        "title": "NuGet: Open nuget.config editor",
+        "icon": "$(book)"
       },
       {
         "command": "nuget-config-editor.addPackageSource",
@@ -112,6 +113,13 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "nuget-config-editor.openVisualEditor",
+          "when": "activeCustomEditorId != 'nugetConfigEditor.visualEditor' && (resourceFilename == 'nuget.config' || resourceFilename == 'NuGet.config' || resourceFilename == 'NuGet.Config')",
+          "group": "navigation",
+          "title": "Open in NuGet Visual Editor",
+          "icon": "$(book)"
+        },
         {
           "command": "nuget-config-editor.openAsTextEditor",
           "when": "activeCustomEditorId == 'nugetConfigEditor.visualEditor'",
