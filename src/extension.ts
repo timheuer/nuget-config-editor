@@ -173,6 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (!target) {
 			vscode.window.showWarningMessage('No nuget.config target to open as text editor');
+			log.warn('⚠️ No nuget.config target to open as text editor');
 			return;
 		}
 
