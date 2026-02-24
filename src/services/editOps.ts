@@ -7,6 +7,7 @@ export function applyEditOps(model: ConfigModel, ops: EditOp[], logger?: Logger)
     let current: ConfigModel = {
         sources: model.sources.map(s => ({ ...s })),
         mappings: model.mappings.map(m => ({ sourceKey: m.sourceKey, patterns: [...m.patterns] })),
+        hasPackageSourcesClear: model.hasPackageSourcesClear,
         rawUnknown: model.rawUnknown,
         versionInfo: model.versionInfo ? { ...model.versionInfo } : undefined
     };

@@ -56,4 +56,18 @@ suite('NuGet Config Parsing & Serialization', () => {
         const badUrlIssues = issues.filter(i => i.code === 'BAD_URL');
         assert.strictEqual(badUrlIssues.length, 0, 'File paths should be valid package sources');
     });
+
+    test('preserves packageSources clear element', () => {
+        const xmlWithClear = `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+</configuration>`;
+        const model = parseNugetConfig(xmlWithClear, true);
+        assert.strictEqual(model.hasPackageSourcesClear, true);
+        const serialized = serializeModel(model, true, '\n');
+        assert.ok(serialized.includes('<clear'), 'Serialized output should retain <clear /> in packageSources');
+    });
 });

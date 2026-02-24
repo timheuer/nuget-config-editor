@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseNugetConfig, writeModelToUri, serializeModel } from '../services/nugetConfigService';
+import { parseNugetConfig, serializeModel } from '../services/nugetConfigService';
 import { validate } from '../services/validationService';
 import { ConfigModel } from '../model/types';
 import { applyEditOps } from '../services/editOps';
@@ -10,6 +10,8 @@ import { CUSTOM_EDITOR_VIEW_TYPE, MSG_OPENING_EDITOR, MSG_CANNOT_SAVE_VALIDATION
 export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = CUSTOM_EDITOR_VIEW_TYPE;
     private static panels = new Map<vscode.WebviewPanel, vscode.Uri>();
+    private static readyPanels = new WeakSet<vscode.WebviewPanel>();
+    private static pendingMessages = new Map<string, any[]>();
 
     constructor(private readonly context: vscode.ExtensionContext, private readonly log: Logger, private readonly onFileSaved?: (uri: vscode.Uri) => void) {}
 
@@ -21,6 +23,35 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
         // Use VS Code's built-in method which handles platform differences correctly
         // (path separators, case sensitivity on Windows vs Unix)
         return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
+    }
+
+    private async persistModelToDocument(document: vscode.TextDocument, updatedModel: ConfigModel, preserveUnknown: boolean): Promise<void> {
+        const newText = serializeModel(updatedModel, preserveUnknown, '\n');
+        const edit = new vscode.WorkspaceEdit();
+        const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+        edit.replace(document.uri, fullRange, newText);
+        const applied = await vscode.workspace.applyEdit(edit);
+        if (!applied) {
+            throw new Error('workspace.applyEdit returned false');
+        }
+        this.onFileSaved?.(document.uri);
+    }
+
+    private static enqueuePendingMessage(uri: vscode.Uri, message: any): void {
+        const key = uri.toString();
+        const queue = NugetConfigCustomEditorProvider.pendingMessages.get(key) ?? [];
+        queue.push(message);
+        NugetConfigCustomEditorProvider.pendingMessages.set(key, queue);
+    }
+
+    private static flushPendingMessages(uri: vscode.Uri, webview: vscode.Webview): void {
+        const key = uri.toString();
+        const queue = NugetConfigCustomEditorProvider.pendingMessages.get(key);
+        if (!queue || queue.length === 0) { return; }
+        for (const pending of queue) {
+            webview.postMessage(pending);
+        }
+        NugetConfigCustomEditorProvider.pendingMessages.delete(key);
     }
 
     async resolveCustomTextEditor(
@@ -67,7 +98,9 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
             this.log.debug(`💬 Received message: ${msg?.type}`);
             switch (msg?.type) {
                 case 'ready':
+                    NugetConfigCustomEditorProvider.readyPanels.add(webviewPanel);
                     sendInit();
+                    NugetConfigCustomEditorProvider.flushPendingMessages(document.uri, webviewPanel.webview);
                     break;
                 case 'requestReparse':
                     load();
@@ -92,11 +125,9 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         return;
                     }
                     try {
-                        await writeModelToUri(document.uri, model, preserveUnknown);
+                        await this.persistModelToDocument(document, model, preserveUnknown);
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: true });
                         this.log.info('✅ nuget.config saved successfully');
-                        // Notify tree provider of file changes
-                        this.onFileSaved?.(document.uri);
                     } catch (err) {
                         this.log.error('❌ Save failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
@@ -109,8 +140,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     }
                     const ops: EditOp[] = Array.isArray(msg.ops) ? msg.ops : [];
                     this.log.debug(`✏️ Applying ${ops.length} edit operation(s)`, { ops: JSON.stringify(ops) });
-                    model = applyEditOps(model, ops, this.log);
-                    const issues = validate(model);
+                    const candidateModel = applyEditOps(model, ops, this.log);
+                    const issues = validate(candidateModel);
                     this.log.debug(`🔄 Validation found ${issues.length} issue(s)`, { issues: JSON.stringify(issues) });
                     // Always send validation results back to the webview
                     webviewPanel.webview.postMessage({ type: 'validation', issues });
@@ -133,29 +164,10 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     }
                     try {
                         this.log.info(`ℹ️ Edit operation: file is ${isInWorkspace ? 'in' : 'outside'} workspace`);
-                        
-                        if (isInWorkspace) {
-                            // For workspace files: use WorkspaceEdit so Undo/Redo and editor dirty state behave natively
-                            const newText = serializeModel(model, preserveUnknown, '\n');
-                            const edit = new vscode.WorkspaceEdit();
-                            const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
-                            edit.replace(document.uri, fullRange, newText);
-                            const applied = await vscode.workspace.applyEdit(edit);
-                            if (applied) {
-                                webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
-                                this.log.debug('📝 Applied WorkspaceEdit to nuget.config (awaiting user save)');
-                            } else {
-                                this.log.error('workspace.applyEdit returned false');
-                                throw new Error('workspace.applyEdit returned false');
-                            }
-                        } else {
-                            // For files outside workspace (e.g., global nuget.config): write directly to file
-                            await writeModelToUri(document.uri, model, preserveUnknown);
-                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
-                            this.log.debug('✍️ Wrote changes directly to file outside workspace');
-                            // Notify tree provider of file changes
-                            this.onFileSaved?.(document.uri);
-                        }
+                        await this.persistModelToDocument(document, candidateModel, preserveUnknown);
+                        model = candidateModel;
+                        webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
+                        this.log.debug('📝 Applied WorkspaceEdit to nuget.config');
                     } catch (err) {
                         this.log.error('❌ Persist failed', { error: String(err) });
                         webviewPanel.webview.postMessage({ type: 'saveResult', ok: false, error: String(err) });
@@ -176,8 +188,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                     if (choice !== MSG_DELETE_BUTTON) { return; }
                     try {
                         const ops: EditOp[] = [{ kind: 'deleteSource', key } as any];
-                        model = applyEditOps(model, ops, this.log);
-                        const issues = validate(model);
+                        const candidateModel = applyEditOps(model, ops, this.log);
+                        const issues = validate(candidateModel);
                         webviewPanel.webview.postMessage({ type: 'validation', issues });
                         
                         const isInWorkspace = this.isFileInWorkspace(document.uri);
@@ -193,29 +205,10 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             this.log.info('🚀 Proceeding with delete despite validation errors (non-workspace file)');
                         }
                         
-                        if (isInWorkspace) {
-                            // For workspace files: use WorkspaceEdit
-                            const newText = serializeModel(model, preserveUnknown, '\n');
-                            const edit = new vscode.WorkspaceEdit();
-                            const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
-                            edit.replace(document.uri, fullRange, newText);
-                            const applied = await vscode.workspace.applyEdit(edit);
-                            if (applied) {
-                                webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_DELETE});
-                                this.log.debug(`✅ Deleted source ${key} via WorkspaceEdit`);
-                            } else {
-                                this.log.error('workspace.applyEdit returned false');
-                                throw new Error('workspace.applyEdit returned false');
-                            }
-                        } else {
-                            // For files outside workspace: write directly to file
-                            await writeModelToUri(document.uri, model, preserveUnknown);
-                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_DELETE});
-                            this.log.debug(`✅ Deleted source ${key} by writing directly to file outside workspace`);
-                            // Notify tree provider of file changes
-                            this.onFileSaved?.(document.uri);
-                        }
-                        
+                        await this.persistModelToDocument(document, candidateModel, preserveUnknown);
+                        model = candidateModel;
+                        webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_DELETE});
+                        this.log.debug(`✅ Deleted source ${key} via WorkspaceEdit`);
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                     } catch (err) {
                         this.log.error('❌ Delete failed', { error: String(err) });
@@ -239,8 +232,8 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                         const patterns = mapping ? mapping.patterns.filter(p => p !== pattern) : [];
                         // Apply as a setMappings edit operation to the in-memory model
                         const ops: EditOp[] = [{ kind: 'setMappings', key, patterns } as any];
-                        model = applyEditOps(model, ops, this.log);
-                        const issues = validate(model);
+                        const candidateModel = applyEditOps(model, ops, this.log);
+                        const issues = validate(candidateModel);
                         webviewPanel.webview.postMessage({ type: 'validation', issues });
 
                         const isInWorkspace = this.isFileInWorkspace(document.uri);
@@ -255,27 +248,10 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
                             this.log.info('🚀 Proceeding with delete pattern despite validation errors (non-workspace file)');
                         }
 
-                        if (isInWorkspace) {
-                            const newText = serializeModel(model, preserveUnknown, '\n');
-                            const edit = new vscode.WorkspaceEdit();
-                            const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
-                            edit.replace(document.uri, fullRange, newText);
-                            const applied = await vscode.workspace.applyEdit(edit);
-                            if (applied) {
-                                webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
-                                this.log.debug(`🗑️ Removed pattern ${pattern} from mapping ${key} via WorkspaceEdit`);
-                            } else {
-                                this.log.error('workspace.applyEdit returned false');
-                                throw new Error('workspace.applyEdit returned false');
-                            }
-                        } else {
-                            await writeModelToUri(document.uri, model, preserveUnknown);
-                            webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
-                            this.log.debug(`🗑️ Removed pattern ${pattern} from mapping ${key} by writing directly to file outside workspace`);
-                            // Notify tree provider of file changes
-                            this.onFileSaved?.(document.uri);
-                        }
-
+                        await this.persistModelToDocument(document, candidateModel, preserveUnknown);
+                        model = candidateModel;
+                        webviewPanel.webview.postMessage({ type: 'saveResult', ok: true, message: MSG_APPLIED_EDIT});
+                        this.log.debug(`🗑️ Removed pattern ${pattern} from mapping ${key} via WorkspaceEdit`);
                         webviewPanel.webview.postMessage({ type: 'init', model, settings: { preserveUnknown } });
                     } catch (err) {
                         this.log.error('❌ Delete pattern failed', { error: String(err) });
@@ -295,6 +271,7 @@ export class NugetConfigCustomEditorProvider implements vscode.CustomTextEditorP
 
         webviewPanel.onDidDispose(() => {
             disposables.forEach(d => d.dispose());
+            NugetConfigCustomEditorProvider.readyPanels.delete(webviewPanel);
             NugetConfigCustomEditorProvider.panels.delete(webviewPanel);
             // Nothing to clean up regarding context keys when the panel is disposed.
         });
@@ -341,11 +318,19 @@ export function broadcastToVisualEditors(message: any) {
 export function sendToVisualEditor(uri: vscode.Uri, message: any): boolean {
     for (const [panel, docUri] of (NugetConfigCustomEditorProvider as any).panels as Map<vscode.WebviewPanel, vscode.Uri>) {
         if (docUri.toString() === uri.toString()) {
-            panel.webview.postMessage(message);
+            if ((NugetConfigCustomEditorProvider as any).readyPanels.has(panel)) {
+                panel.webview.postMessage(message);
+            } else {
+                (NugetConfigCustomEditorProvider as any).enqueuePendingMessage(uri, message);
+            }
             return true;
         }
     }
     return false;
+}
+
+export function queueMessageForVisualEditor(uri: vscode.Uri, message: any): void {
+    (NugetConfigCustomEditorProvider as any).enqueuePendingMessage(uri, message);
 }
 
 /**

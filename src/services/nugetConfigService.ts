@@ -92,7 +92,8 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
             unknown = xml;
         }
 
-        const model: ConfigModel = { sources, mappings, rawUnknown: preserveUnknown ? unknown : undefined };
+        const hasPackageSourcesClear = packageSourcesNode && Object.prototype.hasOwnProperty.call(packageSourcesNode, 'clear');
+        const model: ConfigModel = { sources, mappings, hasPackageSourcesClear, rawUnknown: preserveUnknown ? unknown : undefined };
         // Log debug info about the parsed content. If a sourcePath was provided, include it.
         try {
             log?.debug('✅ Parsed nuget.config', { path: sourcePath, sources: model.sources.length, mappings: model.mappings.length });
@@ -111,8 +112,15 @@ export function parseNugetConfig(xml: string, preserveUnknown: boolean, sourcePa
 export function serializeModel(model: ConfigModel, preserveUnknown: boolean, eol: string): string {
     // Build XML object structure
     const configuration: any = {};
-    if (model.sources.length) {
-        configuration.packageSources = { add: model.sources.map(s => ({ '@_key': s.key, '@_value': s.url })) };
+    if (model.sources.length || model.hasPackageSourcesClear) {
+        const packageSources: any = {};
+        if (model.hasPackageSourcesClear) {
+            packageSources.clear = '';
+        }
+        if (model.sources.length) {
+            packageSources.add = model.sources.map(s => ({ '@_key': s.key, '@_value': s.url }));
+        }
+        configuration.packageSources = packageSources;
     }
     const disabled = model.sources.filter(s => !s.enabled);
     if (disabled.length) {

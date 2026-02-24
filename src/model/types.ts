@@ -3,6 +3,7 @@ export interface PackageSourceMapping { sourceKey: string; patterns: string[]; }
 export interface ConfigModel {
     sources: PackageSource[];
     mappings: PackageSourceMapping[];
+    hasPackageSourcesClear?: boolean;
     rawUnknown?: string;
     versionInfo?: { originalIndent?: string };
 }

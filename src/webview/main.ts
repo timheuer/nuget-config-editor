@@ -5,6 +5,7 @@ declare const acquireVsCodeApi: () => { postMessage(msg: unknown): void; setStat
 const vscodeApi = acquireVsCodeApi();
 
 let currentModel: any | undefined;
+let lastValidationMessage: string | undefined;
 
 // UI Constants (webview context cannot import from ../constants.ts)
 const UI = {
@@ -298,6 +299,7 @@ function render(model: any) {
     currentModel = model;
     const container = $('#nuget-config-editor-root');
     if (!container) { return; }
+    const editDraft = getActiveEditDraft();
     // Ensure any legacy loading element is removed
     const legacyLoading = document.getElementById('loading');
     if (legacyLoading) { legacyLoading.remove(); }
@@ -562,6 +564,31 @@ function render(model: any) {
     }
 
     // mapping click handling moved into sourcesContainer click listener above
+
+    if (editDraft) {
+        const sourceStillExists = model.sources.some((s: any) => s.key === editDraft.originalKey);
+        if (sourceStillExists) {
+            const card = Array.from(container.querySelectorAll('.source-card')).find(el => (el as HTMLElement).dataset.key === editDraft.originalKey) as HTMLElement | undefined;
+            if (card) {
+                enterEditRow(card, editDraft.originalKey, model);
+                const keyInput = card.querySelector('input[aria-label="Edit source key"]') as HTMLInputElement | null;
+                const urlInput = card.querySelector('input[aria-label="Edit source URL"]') as HTMLInputElement | null;
+                if (keyInput && urlInput) {
+                    keyInput.value = editDraft.newKey;
+                    urlInput.value = editDraft.newUrl;
+                    if (editDraft.focusField === 'url') {
+                        urlInput.focus();
+                    } else {
+                        keyInput.focus();
+                    }
+                }
+            }
+        }
+    }
+
+    if (lastValidationMessage) {
+        showError(lastValidationMessage);
+    }
 }
 
 function enterEditRow(card: HTMLElement, key: string, model: any) {
@@ -618,7 +645,41 @@ function escapeHtml(str: string) {
 function showError(message: string) {
     const container = $('#nuget-config-editor-root');
     if (!container) { return; }
-    container.innerHTML = `<div style="color: var(--vscode-editorError-foreground);">${escapeHtml(message)}</div>`;
+    let banner = container.querySelector('#nce-error-banner') as HTMLDivElement | null;
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'nce-error-banner';
+        banner.setAttribute('role', 'alert');
+        banner.className = 'nuget-error';
+        banner.style.marginBottom = '0.75rem';
+        container.prepend(banner);
+    }
+    banner.textContent = message;
+}
+
+function clearError() {
+    const container = $('#nuget-config-editor-root');
+    if (!container) { return; }
+    const banner = container.querySelector('#nce-error-banner');
+    if (banner) { banner.remove(); }
+}
+
+function getActiveEditDraft(): { originalKey: string; newKey: string; newUrl: string; focusField: 'key' | 'url' } | undefined {
+    const editingCard = document.querySelector('.source-card input[aria-label="Edit source key"]')?.closest('.source-card') as HTMLElement | null;
+    if (!editingCard) { return; }
+    const originalKey = editingCard.dataset.key;
+    if (!originalKey) { return; }
+    const keyInput = editingCard.querySelector('input[aria-label="Edit source key"]') as HTMLInputElement | null;
+    const urlInput = editingCard.querySelector('input[aria-label="Edit source URL"]') as HTMLInputElement | null;
+    if (!keyInput || !urlInput) { return; }
+    const active = document.activeElement;
+    const focusField: 'key' | 'url' = active === urlInput ? 'url' : 'key';
+    return {
+        originalKey,
+        newKey: keyInput.value,
+        newUrl: urlInput.value,
+        focusField
+    };
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -648,7 +709,11 @@ window.addEventListener('message', (ev: any) => {
         case 'validation':
             // Display first validation error (future: richer UI)
             if (msg.issues?.length) {
-                showError(msg.issues[0].message);
+                lastValidationMessage = msg.issues[0].message;
+                showError(lastValidationMessage);
+            } else {
+                lastValidationMessage = undefined;
+                clearError();
             }
             break;
         case 'saveResult':
@@ -670,3 +735,4 @@ try {
     }
 } catch {}
 
+    card.dataset.key = key;

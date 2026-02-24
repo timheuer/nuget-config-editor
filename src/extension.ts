@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor, getActiveCustomEditorUri } from './customEditor/nugetConfigCustomEditorProvider';
+import { registerNugetConfigCustomEditor, broadcastToVisualEditors, sendToVisualEditor, getActiveCustomEditorUri, queueMessageForVisualEditor } from './customEditor/nugetConfigCustomEditorProvider';
 import { registerNugetConfigTree } from './tree/nugetConfigTreeProvider';
 import { createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
 import { NUGET_CONFIG_GLOB, NUGET_CONFIG_EXCLUDE_GLOB, MSG_NO_NUGET_CONFIG_FOUND, MSG_SELECT_NUGET_CONFIG, MSG_SELECT_NUGET_CONFIG_FOR_SOURCE, MSG_ENTER_PACKAGE_SOURCE_KEY, MSG_ENTER_PACKAGE_SOURCE_URL, SETTING_PREFER_VISUAL_EDITOR } from './constants';
@@ -111,15 +111,13 @@ export function activate(context: vscode.ExtensionContext) {
 		if (!url) { return; }
 
 		// Try to send to an open visual editor for this URI
-		const sent = sendToVisualEditor(targetUri, { type: 'externalAddSource', key, url });
+		const message = { type: 'externalAddSource', key, url };
+		const sent = sendToVisualEditor(targetUri, message);
 		
 		// If no visual editor is open for this URI, open it
 		if (!sent) {
+			queueMessageForVisualEditor(targetUri, message);
 			await vscode.commands.executeCommand('vscode.openWith', targetUri, 'nugetConfigEditor.visualEditor');
-			// Wait a bit for the editor to initialize, then send the message
-			setTimeout(() => {
-				sendToVisualEditor(targetUri!, { type: 'externalAddSource', key, url });
-			}, 500);
 		}
 	}));
 
